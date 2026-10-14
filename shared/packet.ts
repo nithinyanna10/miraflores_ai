@@ -35,7 +35,9 @@ export class Graph {
       for (const l of v.lines) {
         for (const i of l.inputs) (U[i] ??= []).push(l.key);
         for (const s of l.sources) {
-          const d = this.evs[s]?.document_id ?? (this.docs[s] ? s : s.match(/^doc:(D\d+)/)?.[1]);
+          // Prior-year refs land on the 2024 return (D06) or the prior preparer's file (D07).
+          const py = s.startsWith('py:/return_2024') ? 'D06' : s.startsWith('py:') || s.startsWith('asset:') ? 'D07' : undefined;
+          const d = this.evs[s]?.document_id ?? (this.docs[s] ? s : s.match(/^doc:(D\d+)/)?.[1]) ?? py;
           if (d && !D[d]?.includes(l.key)) (D[d] ??= []).push(l.key);
         }
       }
@@ -214,3 +216,31 @@ export const AREAS: [string, RegExp][] = [
   ['California', /^(SchCA540NR|F540NR|FTB|ScheduleS)/],
 ];
 export const areaOf = (key: string) => AREAS.find(([, re]) => re.test(key))?.[0] ?? 'Other';
+
+// ---------- presentation helpers shared by every view ----------
+export function formName(form: string): string {
+  const m: Record<string, string> = { F1040: 'Form 1040', SchCA540NR: 'Schedule CA (540NR)', F540NR: 'Form 540NR', 'F4562-C': 'Form 4562, business', 'F4562-E': 'Form 4562, rentals', FTB3885A: 'FTB 3885A', FTB5805: 'FTB 5805', ScheduleS: 'Schedule S' };
+  if (m[form]) return m[form];
+  if (/^Sch/.test(form)) return 'Schedule ' + form.slice(3);
+  if (/^F\d/.test(form)) return 'Form ' + form.slice(1);
+  return form;
+}
+
+// Worksheet lines: arithmetic steps a reviewer does not review on their own.
+// Pass-through carries (same value as their one input) and generic step labels, unless on a main form.
+const MAIN_FORM = /^(F1040|F540NR)\./;
+const GENERIC = /^(line \d|add lines|combine lines|.*\bline \d+ (minus|divided by)|.*\(line \d+ \/ line \d+\)|total \(part [ivx]+\)|amount from schedule)/i;
+export function isWorksheet(l: Line, L: Record<string, Line>): boolean {
+  if (l.sources.length) return false;
+  if (GENERIC.test(l.label)) return true;
+  if (MAIN_FORM.test(l.key)) return false;
+  if (l.inputs.length === 1 && L[l.inputs[0]] && L[l.inputs[0]].value === l.value) return true;
+  return false;
+}
+
+// Labels that read the same for two different lines get their form appended.
+export function labelMaker(lines: Line[]): (l: Line) => string {
+  const count: Record<string, number> = {};
+  for (const l of lines) count[l.label] = (count[l.label] ?? 0) + 1;
+  return l => (count[l.label] > 1 ? `${l.label} (${formName(l.form)} line ${l.line})` : l.label);
+}

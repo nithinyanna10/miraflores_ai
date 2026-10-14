@@ -61,8 +61,18 @@ function derive(g: Graph, events: WEvent[]) {
     return (memo[k] = s);
   };
   const blocking = findings.filter(f => f.severity === 'error');
+  // Number of open items on lines this one is built from (not its own).
+  const affMemo: Record<string, number> = {};
+  // Variances are questions to explain, not problems that flow into totals.
+  const affectedBy = (k: string) => (affMemo[k] ??= new Set([...upstream(k)].flatMap(u => (byLine[u] ?? []).filter(f => f.check !== 'prior_year_variance').map(f => f.id))).size);
+  // Latest verification event per ref wins; a later 'verification_withdrawn' clears it.
+  const verified = new Set<string>();
+  for (const e of events) {
+    if (e.type === 'verified') e.refs.forEach(r => verified.add(r));
+    if (e.type === 'verification_withdrawn') e.refs.forEach(r => verified.delete(r));
+  }
   const source = new SimulatedSource(g);
-  return { findings, byLine, unplaced, own, inherited, blocking, source, lotKeys: Object.keys(L).filter(isLot) };
+  return { findings, byLine, unplaced, own, inherited, affectedBy, verified, upstream, blocking, source, lotKeys: Object.keys(L).filter(isLot) };
 }
 
 export type Workpaper = ReturnType<typeof useWorkpaper>;

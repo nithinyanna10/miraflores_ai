@@ -50,3 +50,11 @@ Stack decisions:
 - **Evidence a finding cites that the line never used** (the D73 paystub, qa-25) shows as dashed hops. The document pane lists the open items that cite each document, so a document with no landing still points at the break it explains.
 - **Selection lives in the URL hash** (`#line=SchCA540NR.1.E&src=ev-0047`). Any trace is a shareable link, and the back button works.
 - **Screenshots:** `npm run shots` (Playwright, using the Chromium already installed locally).
+
+## Polish pass (one question per screen)
+- **Outline:** areas are collapsed. Each header shows open items and verified/reviewable. 71 worksheet lines (pass-through carries and generic steps like "Line 3 minus line 4") sit behind "Show worksheet lines". Labels wrap instead of truncating. Duplicate labels get their form and line appended.
+- **Marks:** red marks only where an error originates. Totals built from a broken line show a quiet grey ring ("affected by N"), and that count leaves out prior-year variances.
+- **Findings:** each card shows the problem, the fix and the tax effect, one line each. The reasoning opens on click.
+- **Home:** federal and California summary with 2024, 2025 and change columns. The top 5 blockers by tax effect, then "Show all". The right pane is the document index; a document with no landing and no recorded reason is red.
+- **Proof thread:** steps grouped into stages (Computed by / Built from / Read from / Cited but not used). Clean fields from one page collapse into one step. A connector runs from the selected step to the page margin beside the marked text: red when the step is broken, dashed when the mark is scrolled out of view, hidden in the stacked tablet layout.
+- **Landings:** prior-year refs (`py:`, `asset:`) now count as landings on D06/D07, matching the audit.

@@ -13,17 +13,15 @@ const shots: [string, string, number][] = [
   ['home', '', 1280],
   ['wages', '#line=F1040.1a', 1280],
   ['rsu-lot', '#line=F8949.B.N1', 1280],
+  ['no-landing-doc', '#src=D73', 1280],
   ['ca-wages', '#line=SchCA540NR.1.E', 1280],
-  ['box-a-rollup', '#line=F8949.A.total', 1280],
-  ['interest', '#line=SchB.2', 1280],
-  ['qa-source', '#line=Sch1.17&src=qa-25', 1280],
+  ['interest-total', '#line=SchB.2', 1280],
   ['tablet', '#line=SchC.1', 1024],
-  ['paystub', '#src=D73', 1280],
 ];
 for (const [name, hash, width] of shots) {
   const page = await browser.newPage({ viewport: { width, height: 860 } });
   await page.goto(base + '/' + hash);
-  await page.waitForSelector('.outline-row');
+  await page.waitForSelector('.outline-area');
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${out}${name}.png` });
   await page.close();
