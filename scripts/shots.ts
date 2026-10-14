@@ -11,8 +11,9 @@ const local = `${homedir()}/Library/Caches/ms-playwright/chromium-1228/chrome-ma
 const browser = await chromium.launch(existsSync(local) ? { executablePath: local } : {});
 // [name, hash, width, user (null = signed out), wait ms, reduced motion]
 const shots: [string, string, number, string | null, number, boolean][] = [
-  ['signin-mid-loop', '', 1280, null, 4600, false],
-  ['signin-reduced-motion', '', 1280, null, 300, true],
+  ['signin-mid-loop', '', 1440, null, 3300, false],
+  ['signin-reduced-motion', '', 1440, null, 300, true],
+  ['signin-1280', '', 1280, null, 300, true],
   ['home', '', 1280, 'st-02', 400, false],
   ['rsu-lot', '#line=F8949.B.N1', 1280, 'st-02', 400, false],
   ['document', '#src=D09', 1280, 'st-02', 400, false],
@@ -21,10 +22,11 @@ const shots: [string, string, number, string | null, number, boolean][] = [
   ['signin-tablet', '', 900, null, 300, true],
 ];
 for (const [name, hash, width, user, wait, reduced] of shots) {
-  const page = await browser.newPage({ viewport: { width, height: 860 }, reducedMotion: reduced ? 'reduce' : 'no-preference' });
-  await page.addInitScript(u => { if (u) localStorage.setItem('user', u); else localStorage.removeItem('user'); }, user);
-  await page.goto(base + '/' + hash);
-  await page.waitForSelector(user ? '.outline-area' : '.people');
+  const ctx = await browser.newContext({ viewport: { width, height: 860 }, reducedMotion: reduced ? 'reduce' : 'no-preference' });
+  if (user) await ctx.request.post(`${base}/api/session`, { data: { person: user } });
+  const page = await ctx.newPage();
+  await page.goto(user ? `${base}/app${hash}` : `${base}/`);
+  await page.waitForSelector(user ? '.outline-area' : '.person');
   await page.waitForTimeout(wait);
   await page.screenshot({ path: `${out}${name}.png` });
   await page.close();

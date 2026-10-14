@@ -10,7 +10,7 @@ import { Session, SignoffPanel, ExplainVariances, type Form, type Toast } from '
 import { can, type Actor } from '../shared/policy.ts';
 import { ClientApp } from './ClientApp.tsx';
 import { ChangesDrawer, Compare, WhatIfs, readCursor, writeCursor } from './Views.tsx';
-import { SignIn, signInAs } from './SignIn.tsx';
+import { SignIn, signOut } from './SignIn.tsx';
 
 type Sel = { line?: string; src?: string; view?: string; a?: string; b?: string };
 const readHash = (): Sel => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
@@ -25,17 +25,27 @@ const toggled = (s: Set<string>, x: string) => { const n = new Set(s); n.has(x) 
 export function RoleSwitch({ people, user }: { people: Actor[]; user: string }) {
   const p = people.find(x => x.id === user);
   return (
-    <span className="me"><span>{p?.name}, {p?.role.replace(/_/g, ' ')}</span><button className="link" onClick={() => signInAs(null)}>Switch person</button></span>
+    <span className="me"><span>{p?.name}, {p?.role.replace(/_/g, ' ')}</span><button className="link" onClick={signOut}>Change role</button></span>
   );
 }
 
+// Routes: "/" is always the sign-in page. The app lives under /app; without a session it sends you to
+// sign-in and back to the page you asked for (the hash carries the line and source).
 export function App() {
   const [people, setPeople] = useState<Actor[] | null>(null);
-  const user = (() => { try { return localStorage.getItem('user'); } catch { return null; } })();
-  useEffect(() => { fetch('/api/people').then(r => r.json()).then(setPeople); }, []);
+  const [user, setUser] = useState<string | null | undefined>(undefined);
+  const atRoot = location.pathname === '/' || location.pathname === '';
+  useEffect(() => {
+    fetch('/api/people').then(r => r.json()).then(setPeople);
+    if (!atRoot) fetch('/api/session').then(r => (r.ok ? r.json() : null)).then(s => {
+      if (s) setUser(s.id);
+      else location.replace(`/?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`);
+    });
+  }, []);
   if (!people) return <div className="loading">Loading…</div>;
+  if (atRoot) return <SignIn people={people} />;
   const me = people.find(p => p.id === user);
-  if (!me) return <SignIn people={people} />;
+  if (!me) return <div className="loading">Checking who you are…</div>;
   return me.role === 'client' ? <ClientApp me={me} people={people} /> : <StaffApp user={me.id} people={people} />;
 }
 
@@ -152,7 +162,7 @@ function ResetDemo({ user }: { user: string }) {
   const [error, setError] = useState<string | null>(null);
   const run = async (scenario: string) => {
     setBusy(scenario);
-    const r = await fetch('/api/admin/reset', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': user }, body: JSON.stringify({ scenario }) });
+    const r = await fetch('/api/admin/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scenario }) });
     if (!r.ok) { setBusy(null); setError((await r.json()).error); }
     // success: the server tells every open browser (this one included) to reload
   };

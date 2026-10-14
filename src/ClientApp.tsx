@@ -11,7 +11,7 @@ export function ClientApp({ me, people }: { me: Actor; people: Actor[] }) {
   const [P, setP] = useState<any>(null);
   const { events, live } = useEvents(me.id);
   const [open, setOpen] = useState<{ kind: 'doc' | 'file'; id: string } | null>(null);
-  useEffect(() => { fetch('/api/client', { headers: { 'x-user': me.id } }).then(r => r.json()).then(setP); }, [me.id]);
+  useEffect(() => { fetch('/api/client', {}).then(r => r.json()).then(setP); }, [me.id]);
   if (!P) return <div className="loading">Loading…</div>;
   const questions = questionsOf(events);
   const waiting = questions.filter(q => !q.answers.length);

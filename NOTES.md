@@ -144,3 +144,23 @@ Stack decisions:
 3. Reduced motion shows the final frame static: both threads drawn, Verified, the break and the fix visible.
 4. Right: firm name, the return ("Okafor-Lindqvist, 2025 joint return, CA to TX") with the extended due date from `firm.deadlines`, then Staff and Client groups on one paper card stack. Each row has name, role, credential, one line of what they can do here, a quiet badge if they see unmasked SSNs, and a note if they have not started yet.
 5. Clicking a row signs in, which is client-side only; the server still enforces every role. In the app, the header shows "Name, role" with a "Switch person" link back here.
+
+## Phase 4: filing and after
+
+### Screen plan: Filing (one view, top to bottom in the order things happen)
+1. **Ready to file:** the firm's 12 required steps as a live checklist computed from the event log. Each unmet step says what is missing and links to it. Nothing is ticked by hand.
+2. **Approval and signature:** the partner sends the return to the client with a summary (v3 plus adjustment estimates, labelled). Each spouse reviews and signs Forms 8879 and FTB 8879 with a 5-digit PIN in the client view.
+3. **E-file:** the partner transmits. Agency responses replay from `tax_agency_records.efile` in order, so the federal rejection (Theo's SSN) arrives first. Fixing it and retransmitting brings the acceptance. Federal acceptance freezes the return: the server records the event cursor and a hash of every line, and refuses changes after it.
+4. **After filing:** an amendment opens a layer on top of the frozen return (partner only). Payments and refunds come from the transcript and timeline, with interest and failure-to-pay estimates at `post_filing_rates`. The 2028 Letter 566 response packet is exported as one self-contained HTML file. Carry-forward to 2026 records the opening balances and open items for next year's preparer.
+5. **Season view:** the packet timeline merged with the workpaper's own events, plus "Replay as of" any date. The whole app then shows the state at that moment, read-only.
+
+## Sign-in, take two (DESIGN.md revised mid-phase)
+- **Real sessions, still no passwords.** `POST /api/session {person}` sets an HttpOnly, SameSite=Lax cookie (Secure in production) holding the person id, HMAC-signed with `SESSION_SECRET`.
+  - The server reads the person, and so the role, only from that cookie. The old `x-user` header is ignored, and a test sends a forged one to prove it.
+  - Every data endpoint, the event stream and attachments return 401 without a session. Only the people list and the engagement name (`/api/meta`) are public, because the sign-in page shows them.
+- **Routes:** `/` is always sign-in. The app is `/app`; without a session it redirects to `/?next=<the page>` and returns there after sign-in, so deep links to a line keep working. "Change role" deletes the session and returns to `/`.
+- **Page:** per the revised spec, on #F6F6F3 (this page only):
+  - Left: the "doubles" animation in ink, teal and one muted lilac. DESIGN.md asks for lilac here; I kept it to this animation only, since the general rules say no purple.
+  - Centre: the white card with a made-up firm email (`first.last@miraflores.example`).
+  - Right: the people list. Arrow keys move the selection; Enter signs in.
+- **Tests** sign in through `/api/session`, the way a browser does. `scripts/reset.sh <url> clean|midseason` resets as the firm administrator.

@@ -13,7 +13,7 @@ export function useBulk() {
   const bulkVerify = async (keys: string[], what: string) => {
     if (!me || !w) return;
     const values = Object.fromEntries(keys.map(k => [k, w.value!(k)]));
-    const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': me.id }, body: JSON.stringify({ type: 'verified', refs: keys, payload: { method: 'agreed_to_source_document', values, bulk: true } }) });
+    const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'verified', refs: keys, payload: { method: 'agreed_to_source_document', values, bulk: true } }) });
     const ev = await r.json();
     if (!r.ok) return toast?.({ text: ev.error });
     toast?.({ text: `Verified ${what} against the broker statement.`, undo: async () => { await post(me.id, 'verification_withdrawn', keys, { undo: ev.seq }); toast?.({ text: `Undone: ${keys.length} verifications withdrawn.` }); } });
@@ -187,7 +187,7 @@ export function ExplainVariances({ items, onDone }: { items: Finding[]; onDone: 
       e.preventDefault(); if (!me) return;
       setBusy(true);
       const refs = [...new Set(items.flatMap(f => f.lines))];
-      const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': me.id }, body: JSON.stringify({ type: 'variance_explained', refs, payload: { reasons: Object.fromEntries(items.map(f => [f.id, reasons[f.id].trim()])) } }) });
+      const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'variance_explained', refs, payload: { reasons: Object.fromEntries(items.map(f => [f.id, reasons[f.id].trim()])) } }) });
       const ev = await r.json(); setBusy(false);
       if (!r.ok) return setError(ev.error);
       toast?.({ text: `Explained ${items.length} ${items.length === 1 ? 'change' : 'changes'} from 2024.`, undo: async () => { await post(me.id, 'variance_explanation_withdrawn', refs, { explanation: ev.seq }); toast?.({ text: 'Explanations withdrawn.' }); } });

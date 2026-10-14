@@ -6,16 +6,16 @@ export type WEvent = StoredEvent;
 
 // Writes go through the server, which checks the role; the reply is either the stored event or a reason.
 export async function post(user: string, type: string, refs: string[], payload: any = {}): Promise<string | null> {
-  const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': user }, body: JSON.stringify({ type, refs, payload }) });
+  const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, refs, payload }) });
   return r.ok ? null : (await r.json().catch(() => ({ error: 'The server refused.' }))).error;
 }
 export async function attach(user: string, file: File, refs: string[], opts: { note?: string; question?: number; share?: boolean } = {}): Promise<{ error?: string; id?: string }> {
   const q = new URLSearchParams({ refs: refs.join(','), name: file.name, ...(opts.note ? { note: opts.note } : {}), ...(opts.question ? { question: String(opts.question) } : {}), ...(opts.share ? { share: '1' } : {}) });
-  const r = await fetch(`/api/attachments?${q}`, { method: 'POST', headers: { 'x-user': user, 'content-type': file.type || 'application/octet-stream' }, body: file });
+  const r = await fetch(`/api/attachments?${q}`, { method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream' }, body: file });
   const body = await r.json().catch(() => ({ error: 'Upload failed.' }));
   return r.ok ? { id: body.payload.id } : { error: body.error };
 }
-export const attachmentUrl = (user: string, id: string) => `/api/attachments/${id}?user=${encodeURIComponent(user)}`;
+export const attachmentUrl = (user: string, id: string) => `/api/attachments/${id}`;
 
 // The event log as this user may see it, kept live over SSE.
 export function useEvents(user: string) {
@@ -23,9 +23,9 @@ export function useEvents(user: string) {
   const [live, setLive] = useState(false);
   useEffect(() => {
     let last = 0, src: EventSource | null = null;
-    fetch('/api/events', { headers: { 'x-user': user } }).then(r => r.json()).then((es: WEvent[]) => {
+    fetch('/api/events', {}).then(r => r.json()).then((es: WEvent[]) => {
       setEvents(es); last = es.at(-1)?.seq ?? 0;
-      src = new EventSource(`/api/stream?user=${encodeURIComponent(user)}`);
+      src = new EventSource(`/api/stream`);
       src.onopen = () => setLive(true);
       src.onerror = () => setLive(false);
       src.addEventListener('reset', () => location.reload()); // the demo was reset by the administrator
@@ -40,7 +40,7 @@ export function useEvents(user: string) {
 }
 
 export async function reveal(user: string, ref: string): Promise<{ value?: any; error?: string }> {
-  const r = await fetch('/api/reveal', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': user }, body: JSON.stringify({ ref }) });
+  const r = await fetch('/api/reveal', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ref }) });
   return r.json();
 }
 
@@ -49,8 +49,8 @@ export function useWorkpaper(user: string) {
   const [audit, setAudit] = useState<{ findings: Finding[] } | null>(null);
   const { events, live } = useEvents(user);
   useEffect(() => {
-    fetch('/api/packet', { headers: { 'x-user': user } }).then(r => r.json()).then(P => setG(new Graph(P)));
-    fetch('/api/findings', { headers: { 'x-user': user } }).then(r => r.json()).then(setAudit);
+    fetch('/api/packet', {}).then(r => r.json()).then(P => setG(new Graph(P)));
+    fetch('/api/findings', {}).then(r => r.json()).then(setAudit);
   }, [user]);
 
   const derived = useMemo(() => (g ? derive(g, events) : null), [g, events]);

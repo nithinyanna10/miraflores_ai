@@ -1,5 +1,6 @@
 // Who may do what. The server enforces this; the client uses it only to hide actions a user cannot take.
 import { isLot, isWorksheet, areaOf, type Graph } from './packet.ts';
+import { readiness, efileState, frozenAt, openAmendment, signedBy } from './filing.ts';
 
 export type Actor = { id: string; name: string; role: string; sensitive_data_clearance?: boolean; active_from?: string };
 export type EventIn = { type: string; refs: string[]; payload: any };
@@ -31,6 +32,14 @@ export const ALLOWED: Record<string, string[]> = {
   adjustment_reversed: WORKERS,
   adjustment_approved: ['partner'],
   finding_resolved: ['reviewer', 'partner'],
+  sent_for_approval: ['partner'],
+  client_signed_8879: ['client'],
+  efile_transmitted: ['partner'],
+  efile_response: WORKERS,
+  amendment_opened: ['partner'],
+  amendment_filed: ['partner'],
+  notice_response_prepared: WORKERS,
+  carried_forward: WORKERS,
   finding_reopened: ['reviewer', 'partner'],
 };
 
@@ -38,7 +47,7 @@ export const ALLOWED: Record<string, string[]> = {
 export const VERB: Record<string, string> = {
   verified: 'verify a number', verification_withdrawn: 'withdraw a verification', note: 'add a note',
   review_note_opened: 'write a review note', review_note_replied: 'reply to a review note', review_note_cleared: 'clear a review note',
-  adjusted: 'adjust a line', election_recorded: 'record an election', recompute_recorded: 'record a recompute', variance_explained: 'explain a variance', variance_explanation_withdrawn: 'withdraw a variance explanation', adjustment_reversed: 'reverse an adjustment', adjustment_approved: 'approve an adjustment', signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
+  adjusted: 'adjust a line', election_recorded: 'record an election', recompute_recorded: 'record a recompute', variance_explained: 'explain a variance', variance_explanation_withdrawn: 'withdraw a variance explanation', adjustment_reversed: 'reverse an adjustment', adjustment_approved: 'approve an adjustment', sent_for_approval: 'send the return for client approval', client_signed_8879: 'sign Form 8879', efile_transmitted: 'transmit the return', efile_response: 'record an agency response', amendment_opened: 'open an amendment', amendment_filed: 'file an amendment', notice_response_prepared: 'prepare a notice response', carried_forward: 'carry forward to 2026', signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
 };
 export const can = (a: Actor | undefined, type: string) => !!a && isActive(a) && (ALLOWED[type] ?? []).includes(a.role);
 
@@ -52,6 +61,44 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
   if (!roles) return `${e.type.replace(/_/g, ' ')} is recorded by the system, not by people.`;
   if (!roles.includes(a.role)) return `A ${a.role.replace(/_/g, ' ')} cannot ${VERB[e.type]}.`;
   if (!e.refs.length) return 'Say what this applies to.';
+
+  // Freeze at filing: once the federal return is accepted, the return cannot change except through an amendment.
+  const frozen = frozenAt(log);
+  if (frozen && FROZEN_REFUSES.has(e.type) && !openAmendment(log))
+    return `The return was filed and frozen on ${frozen.at.slice(0, 10)}. Open an amendment to change it.`;
+  if (['amendment_opened', 'notice_response_prepared', 'carried_forward'].includes(e.type) && !frozen) return 'This comes after the return is filed.';
+  if (e.type === 'amendment_opened') {
+    if (openAmendment(log)) return 'An amendment is already open.';
+    if (!String(e.payload?.reason ?? '').trim()) return 'Say why the return is being amended.';
+  }
+  if (e.type === 'amendment_filed' && !openAmendment(log)) return 'No amendment is open.';
+
+  if (e.type === 'sent_for_approval') {
+    const partner = readiness(g, log).find(s => s.step === 'Partner sign-off')!;
+    if (!partner.done) return 'The partner signs off on the whole return before it goes to the client.';
+  }
+  if (e.type === 'client_signed_8879') {
+    if (!log.some(x => x.type === 'sent_for_approval')) return 'The return has not been sent to you for approval yet.';
+    if (signedBy(log).some(x => x.actor === a.id)) return 'You already signed this version.';
+    if (!/^\d{5}$/.test(String(e.payload?.pin ?? ''))) return 'Enter a 5-digit PIN of your choosing.';
+    if (e.payload?.agree !== true) return 'Confirm that you reviewed the return.';
+  }
+  if (e.type === 'efile_transmitted') {
+    const steps = readiness(g, log);
+    const must = steps.filter(s => ['Partner sign-off', 'Client approval and e-file authorization'].includes(s.step) && !s.done);
+    if (must.length) return `${must.map(s => s.missing).join('. ')}.`;
+    const ef = efileState(g, log);
+    if (ef.awaiting) return 'The last transmission is still waiting for the agencies to respond.';
+    if (ef.fedAccepted && ef.caAccepted) return 'Both returns were accepted.';
+    const other = steps.filter(s => !s.done);
+    if (other.length && !String(e.payload?.override ?? '').trim()) return `Not ready: ${other.map(s => s.step).join('; ')}. To transmit anyway, write why.`;
+  }
+  if (e.type === 'efile_response') {
+    const ef = efileState(g, log);
+    if (!ef.awaiting) return 'Nothing is waiting for an agency response.';
+    if (e.payload?.index !== ef.nextIndex) return 'Responses are recorded in the order the agencies sent them.';
+  }
+
 
   if (e.type === 'verified' && !g.P.firm.starter_standards.verification_types.includes(e.payload?.method))
     return 'Choose how the number was verified.';
@@ -123,6 +170,9 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
   }
   return null;
 }
+
+// Everything that changes the return or its evidence. After filing these need an open amendment.
+export const FROZEN_REFUSES = new Set(['verified', 'verification_withdrawn', 'adjusted', 'adjustment_reversed', 'adjustment_approved', 'signed_off', 'signoff_withdrawn', 'finding_resolved', 'finding_reopened', 'variance_explained', 'variance_explanation_withdrawn', 'recompute_recorded', 'election_recorded', 'sent_for_approval', 'client_signed_8879', 'efile_transmitted']);
 
 // ---------- adjustments: the original stays; the latest live adjustment wins ----------
 export const NEEDS_PARTNER_OVER = 1000; // firm rule: adjustments with a tax effect over 1,000 need partner sign-off

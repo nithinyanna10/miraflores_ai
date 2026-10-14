@@ -11,10 +11,12 @@ const ok = (v: unknown, m: string) => { if (!v) throw new Error('FAIL: ' + m); c
 const errors: string[] = [];
 
 async function as(user: string, hash: string): Promise<Page> {
-  const p = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  // Sign in the way a person does: the server sets the session cookie.
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  await ctx.request.post(`${base}/api/session`, { data: { person: user } });
+  const p = await ctx.newPage();
   p.on('pageerror', e => errors.push(e.message));
-  await p.addInitScript(u => localStorage.setItem('user', u), user);
-  await p.goto(`${base}/${hash}`);
+  await p.goto(`${base}/app${hash}`);
   await p.waitForSelector('.outline-area, .client-col');
   await p.waitForTimeout(300);
   return p;
@@ -42,7 +44,7 @@ await p.click('button:has-text("Sign off on Wages")');
 await p.waitForSelector('.signoff-row:has-text("Signed by Daniel")');
 ok(true, 'reviewer sign-off on Wages after preparer');
 // Reviewer writes a review note on gross receipts
-await p.goto(`${base}/#line=SchC.1`); await p.waitForSelector('.thread');
+await p.goto(`${base}/app#line=SchC.1`); await p.waitForSelector('.thread');
 await p.click('text=Write a review note');
 await p.fill('.action-form textarea', 'Tie gross receipts to the 1099-NECs and the 1099-K before we file. Show the Atlas overlap.');
 await p.click('text=Send to the preparer');
@@ -110,11 +112,11 @@ ok(body.includes('1 question needs your answer'), 'client sees the one question 
 ok(!body.includes('Tie gross receipts') && !body.includes('blocking') && !body.includes('Blocked'), 'client sees no review notes or open items');
 ok(!body.includes('coinhaven-basis-workpaper.txt'), 'client does not see staff files not shared with them');
 const api = await p.evaluate(async () => ({
-  packet: (await fetch('/api/packet', { headers: { 'x-user': 'cu-01' } })).status,
+  packet: (await fetch('/api/packet', { headers: { 'x-user': 'st-02' } })).status, // a forged header must not help
   findings: (await fetch('/api/findings', { headers: { 'x-user': 'cu-01' } })).status,
   types: [...new Set<string>((await (await fetch('/api/events', { headers: { 'x-user': 'cu-01' } })).json()).map((e: any) => e.type))],
 }));
-ok(api.packet === 403 && api.findings === 403, 'server refuses the workpaper and findings to a client');
+ok(api.packet === 403 && api.findings === 403, 'server refuses the workpaper to a client, even with a forged x-user header');
 ok(api.types.every((t: string) => ['client_question', 'client_answer', 'evidence_attached', 'sensitive_viewed'].includes(t)), `client receives only client events (${api.types.join(', ')})`);
 await p.fill('.client-question textarea', 'Attached is the bank statement line for the purchase.');
 await p.setInputFiles('.client-question input[type=file]', { name: 'bank-statement-2021-03.txt', mimeType: 'text/plain', buffer: Buffer.from('03/15/2021  CRYPTONORTH EXCHANGE  -3,050.00') });
@@ -130,6 +132,24 @@ await p.waitForSelector('.question.is-cleared');
 ok(await p.locator('.hop:has-text("bank-statement-2021-03.txt")').count() === 1, "client's file is evidence on the line");
 await p.screenshot({ path: 'shots/p2-evidence.png' });
 await p.close();
+
+// 11. No session: data is refused, and a deep link goes through sign-in and comes back to the same line
+const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+ok((await anon.request.get(`${base}/api/events`)).status() === 401, 'no session, no events');
+ok((await anon.request.get(`${base}/api/packet`, { headers: { 'x-user': 'st-02' } })).status() === 401, 'no session, no packet (header ignored)');
+const ap = await anon.newPage();
+await ap.goto(`${base}/app#line=SchC.1`);
+await ap.waitForSelector('.person');
+ok(ap.url().includes('/?next='), 'deep link redirects to sign-in');
+await ap.locator('.person').filter({ hasText: 'Helen Strand' }).click();
+await ap.click('text=Sign in as Helen');
+await ap.waitForSelector('.thread');
+ok(ap.url().includes('/app#line=SchC.1'), 'after sign-in, back on the requested line');
+ok(await ap.locator('.me').innerText().then(t => t.includes('Helen Strand')), 'header shows who is signed in');
+await ap.click('text=Change role');
+await ap.waitForSelector('.person');
+ok((await anon.request.get(`${base}/api/events`)).status() === 401, 'Change role signs out');
+await anon.close();
 
 ok(errors.length === 0, `no page errors ${errors.join('; ')}`);
 await browser.close();

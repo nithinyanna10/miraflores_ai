@@ -342,72 +342,71 @@ button.hop-body:hover { border-color: var(--ink-3); }
 .hop.is-broken.is-question > .hop-marker::before { background: var(--amber); }
 .hop.is-active.is-broken.is-question > .hop-body { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); }
 
-/* ---------- sign-in ---------- */
-.signin { min-height: 100%; display: grid; grid-template-columns: 55fr 45fr; background: var(--desk); }
-.signin-story { display: grid; align-content: center; justify-items: center; gap: 20px; padding: 48px; }
-.signin-line { font-size: 18px; }
-.signin-people { padding: 56px 48px 48px; overflow: auto; display: grid; align-content: start; gap: 6px; }
-.signin-people h1 { font-size: 32px; font-weight: 600; line-height: 1.2; }
-.signin-return { font-size: 15px; }
-.signin-people h2 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-top: 22px; }
-.people { list-style: none; margin: 4px 0 0; padding: 0; background: var(--paper); box-shadow: var(--paper-shadow); border: 1px solid var(--rule); border-radius: 3px; }
-.people li + li { border-top: 1px solid var(--rule); }
-.people button { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'who badge' 'can can'; gap: 2px 12px; width: 100%; padding: 12px 16px; }
-.people button:hover { background: var(--panel); }
-.people .who { grid-area: who; display: flex; gap: 10px; align-items: baseline; font-size: 15px; }
-.people .can { grid-area: can; color: var(--ink-2); }
-.people .badge { grid-area: badge; align-self: center; font-size: 12px; color: var(--teal); border: 1px solid var(--teal); border-radius: 3px; padding: 1px 6px; white-space: nowrap; }
-.signin-note { margin-top: 16px; }
-@media (max-width: 1000px) { .signin { grid-template-columns: 1fr; } .signin-story { padding: 32px 24px 0; } .signin-people { padding: 24px; } }
+/* ---------- sign-in (its own background, per DESIGN.md) ---------- */
+.signin { min-height: 100vh; background: #F6F6F3; display: grid; grid-template-columns: 280px minmax(340px, 400px) 420px; gap: 56px; align-items: center; justify-content: center; padding: 40px; }
+.signin-fun { display: grid; gap: 12px; justify-items: center; text-align: center; }
+.signin-center { display: grid; gap: 10px; }
+.signin-firm { text-align: center; color: var(--ink-2); font-size: 15px; }
+.signin-title { text-align: center; font: italic 400 24px var(--serif); margin-bottom: 8px; }
+.signin-card { background: var(--paper); box-shadow: var(--paper-shadow); border: 1px solid var(--rule); border-radius: 6px; padding: 24px; display: grid; gap: 14px; }
+.signin-card header { display: flex; gap: 12px; align-items: center; }
+.signin-card header > span:last-child { display: grid; }
+.signin-card header strong { font-size: 18px; font-weight: 600; }
+.signin-card label { display: grid; gap: 4px; color: var(--ink-2); }
+.signin-card input { font: 15px var(--sans); color: var(--ink); border: 1px solid var(--rule); border-radius: 3px; padding: 8px 10px; background: var(--panel); }
+.btn.primary { justify-content: center; padding: 9px 12px; font-size: 15px; }
+.small { font-size: 12px; }
+.signin-return { text-align: center; }
+.signin-people { max-height: calc(100vh - 80px); overflow: auto; }
+.signin-people h2 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.signin-people h3 { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 14px 0 4px; }
+.person { display: grid; grid-template-columns: 36px 1fr; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 6px; border: 1.5px solid transparent; }
+.person:hover { background: rgba(24, 32, 46, .04); }
+.person.is-selected { border-color: var(--ink); background: var(--paper); }
+.person-text { display: grid; gap: 1px; }
+.person-name { font-weight: 600; font-size: 15px; }
+.person-role { color: var(--ink); }
+.person-can { color: var(--ink-2); }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--desk); color: var(--ink); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+.avatar.large { width: 44px; height: 44px; font-size: 15px; }
+@media (max-width: 1180px) { .signin { grid-template-columns: minmax(320px, 420px) minmax(320px, 420px); } .signin-fun { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .signin { grid-template-columns: 1fr; padding: 20px; gap: 28px; } }
 
-/* the loop: base styles are the final frame */
-.loop { width: min(760px, 100%); height: auto; overflow: visible; }
-.loop .page rect:first-child { fill: var(--paper); stroke: var(--rule); filter: drop-shadow(0 1px 2px rgba(24,32,46,.06)) drop-shadow(0 8px 24px rgba(24,32,46,.06)); }
-.loop .doc-title { font: 600 15px var(--serif); fill: var(--ink); }
-.loop .doc-text { font: 400 15px var(--serif); fill: var(--ink); }
-.loop .faint { fill: var(--ink-2); }
-.loop .num-end { text-anchor: end; font-variant-numeric: tabular-nums; }
-.loop .hl-1 { fill: var(--mark); stroke: var(--ink); stroke-width: 1; }
-.loop .hl-2 { fill: none; stroke: var(--red); stroke-width: 1.5; stroke-dasharray: 4 3; }
-.loop .line-card rect { fill: var(--panel); stroke: var(--rule); }
-.loop .ui { font: 400 15px var(--sans); fill: var(--ink); }
-.loop .ui.strong { font-weight: 600; }
-.loop .ui-small { font: 400 12px var(--sans); fill: var(--ink-2); }
-.loop .st-open, .loop .st-open-2 { fill: var(--panel); stroke: var(--ink-2); stroke-width: 1.5; opacity: 0; }
-.loop .st-ok circle { fill: var(--teal); }
-.loop .st-ok path { fill: none; stroke: var(--paper); stroke-width: 2; }
-.loop .st-bad rect { fill: var(--red); }
-.loop .st-bad path { fill: none; stroke: var(--paper); stroke-width: 2; }
-.loop .thread { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
-.loop .t2a { stroke: var(--red); }
-.loop .t2b { stroke: var(--red); stroke-dasharray: 5 5; }
-.loop .t1, .loop .t2a { stroke-dasharray: 1; stroke-dashoffset: 0; }
-.loop .break { stroke: var(--red); stroke-width: 3; stroke-linecap: round; }
-.loop .fix { font: 400 15px var(--serif); fill: var(--ink); }
-
+/* the doubles animation: ink, teal and one muted lilac; base styles are the final frame */
+.doubles { width: 280px; height: auto; overflow: visible; --lilac: #B7AECF; }
+.doubles * { transform-box: fill-box; transform-origin: center; }
+.doubles .receipt path { fill: var(--paper); stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.doubles .receipt line { stroke: var(--lilac); stroke-width: 4; stroke-linecap: round; }
+.doubles .coin circle { fill: var(--lilac); stroke: var(--ink); stroke-width: 2; }
+.doubles .coin .inner { fill: none; stroke-width: 1.5; }
+.doubles .coin-b, .doubles .puff, .doubles .twice { opacity: 0; }
+.doubles .puff circle { fill: var(--lilac); }
+.doubles .twice { font: 400 15px var(--sans); fill: var(--ink-2); text-anchor: middle; }
+.doubles .stamp circle { fill: none; stroke: var(--teal); stroke-width: 3; }
+.doubles .stamp text { font: 600 12px var(--sans); fill: var(--teal); text-anchor: middle; }
+.doubles .stamp { transform: rotate(-8deg); }
+.doubles .lens { fill: rgba(183, 174, 207, .25); stroke: var(--ink); stroke-width: 5; }
+.doubles .handle { stroke: var(--ink); stroke-width: 7; stroke-linecap: round; }
+.doubles .eyes circle { fill: var(--ink); }
+.doubles .glass { transform: translate(-6px, 26px); transform-box: view-box; transform-origin: 0 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .loop .hl-1 { animation: hl1 8s infinite; }
-  .loop .t1 { animation: t1 8s infinite; }
-  .loop .st-open { animation: open1 8s infinite; }
-  .loop .st-ok { animation: ok1 8s infinite; }
-  .loop .hl-2 { animation: hl2 8s infinite; }
-  .loop .t2a { animation: t2a 8s infinite; }
-  .loop .t2b, .loop .break { animation: brk 8s infinite; }
-  .loop .st-open-2 { animation: open2 8s infinite; }
-  .loop .st-bad { animation: bad 8s infinite; }
-  .loop .fix { animation: fix 8s infinite; }
+  .doubles .glass { animation: hop 8.5s infinite cubic-bezier(.45, 0, .25, 1); }
+  .doubles .glass-body { animation: take 8.5s infinite ease-in-out; }
+  .doubles .eyes { animation: eyes 8.5s infinite ease-in-out; }
+  .doubles .coin-a { animation: coinA 8.5s infinite cubic-bezier(.3, 1.4, .6, 1); }
+  .doubles .coin-b { animation: coinB 8.5s infinite cubic-bezier(.3, 1.4, .6, 1); }
+  .doubles .puff { animation: puff 8.5s infinite ease-out; }
+  .doubles .twice { animation: twice 8.5s infinite ease-in-out; }
+  .doubles .stamp { animation: stamp 8.5s infinite cubic-bezier(.2, .9, .3, 1.3); }
 }
-@keyframes hl1 { 0%, 6% { opacity: 0; } 12%, 92% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes t1 { 0%, 13% { stroke-dashoffset: 1; } 28%, 92% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
-@keyframes open1 { 0%, 29% { opacity: 1; } 31%, 100% { opacity: 0; } }
-@keyframes ok1 { 0%, 30% { opacity: 0; transform: scale(.6); } 34%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
-@keyframes hl2 { 0%, 40% { opacity: 0; } 45%, 92% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes t2a { 0%, 46% { stroke-dashoffset: 1; } 56%, 92% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
-@keyframes brk { 0%, 57% { opacity: 0; } 60%, 92% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes open2 { 0%, 60% { opacity: 1; } 62%, 100% { opacity: 0; } }
-@keyframes bad { 0%, 61% { opacity: 0; } 64%, 92% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes fix { 0%, 68% { opacity: 0; } 76%, 92% { opacity: 1; } 100% { opacity: 0; } }
-.loop .st-ok { transform-origin: 400px 103px; }
+@keyframes hop { 0%, 8% { transform: translate(34px, 92px); } 13% { transform: translate(14px, 18px); } 18%, 92% { transform: translate(-6px, 26px); } 97%, 100% { transform: translate(34px, 92px); } }
+@keyframes take { 0%, 34% { transform: none; } 37% { transform: rotate(-14deg); } 40% { transform: rotate(4deg); } 43%, 62% { transform: none; } 64% { transform: rotate(9deg); } 66% { transform: rotate(-9deg); } 68% { transform: rotate(7deg); } 70% { transform: rotate(-5deg); } 72%, 100% { transform: none; } }
+@keyframes eyes { 0%, 35% { transform: none; } 37%, 42% { transform: scale(1.7); } 45%, 100% { transform: none; } }
+@keyframes coinA { 0%, 20% { transform: translate(32px, 60px) scale(.2); opacity: 0; } 26%, 94% { transform: none; opacity: 1; } 100% { opacity: 0; } }
+@keyframes coinB { 0%, 21% { transform: translate(-32px, 60px) scale(.2); opacity: 0; } 27%, 46% { transform: none; opacity: 1; } 52%, 100% { transform: scale(0); opacity: 0; } }
+@keyframes puff { 0%, 48% { opacity: 0; transform: scale(.4); } 52% { opacity: 1; transform: scale(1); } 58%, 100% { opacity: 0; transform: scale(1.8); } }
+@keyframes twice { 0%, 28% { opacity: 0; } 32%, 48% { opacity: 1; } 54%, 100% { opacity: 0; } }
+@keyframes stamp { 0%, 55% { opacity: 0; transform: rotate(-8deg) scale(1.8); } 59% { opacity: 1; transform: rotate(-8deg) scale(.92); } 62%, 92% { opacity: 1; transform: rotate(-8deg) scale(1); } 97%, 100% { opacity: 0; transform: rotate(-8deg) scale(1); } }
 
 /* header identity */
 .me { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; }

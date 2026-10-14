@@ -6,7 +6,8 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { streamSSE } from 'hono/streaming';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Graph, effectOf } from '../shared/packet.ts';
 import { refuse, isActive, visibleTo, ATTACH_ROLES, NEEDS_PARTNER_OVER, type Actor, type StoredEvent } from '../shared/policy.ts';
 import { buildMasker } from './mask.ts';
@@ -78,12 +79,33 @@ app.get('/api/meta', c => {
     extended: P.firm.deadlines.find((d: any) => /Extended due date/.test(d.what))?.date,
   });
 });
-const userOf = (c: any) => actorOf(c.req.header('x-user') ?? c.req.query('user'));
-const staffOnly = (c: any) => { const a = userOf(c); return a && a.role !== 'client' ? null : c.json({ error: a ? 'Clients see their own documents and questions, not the workpaper.' : 'Pick who you are first.' }, 403); };
+// Session: an HttpOnly cookie holding the person id, signed with a server secret. The server takes the
+// person (and so the role) from it, never from anything else the browser sends. There is no password in
+// this prototype; choosing a person on the sign-in page creates the session.
+const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex'); // without a set secret, restarts sign everyone out
+const sign = (id: string) => `${id}.${createHmac('sha256', SECRET).update(id).digest('base64url')}`;
+const unsign = (v?: string) => {
+  if (!v) return undefined;
+  const i = v.lastIndexOf('.');
+  const id = v.slice(0, i), good = Buffer.from(sign(id)), got = Buffer.from(v);
+  return good.length === got.length && timingSafeEqual(good, got) ? id : undefined;
+};
+const userOf = (c: any) => actorOf(unsign(getCookie(c, 'wp_session')));
+app.post('/api/session', async c => {
+  const { person } = await c.req.json().catch(() => ({}));
+  const a = actorOf(person);
+  if (!a) return c.json({ error: 'Choose a person from the list.' }, 400);
+  setCookie(c, 'wp_session', sign(a.id), { httpOnly: true, sameSite: 'Lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 12 });
+  return c.json({ id: a.id, name: a.name, role: a.role });
+});
+app.get('/api/session', c => { const a = userOf(c); return a ? c.json({ id: a.id, name: a.name, role: a.role, sensitive_data_clearance: a.sensitive_data_clearance }) : c.json({ error: 'Not signed in.' }, 401); });
+app.delete('/api/session', c => { deleteCookie(c, 'wp_session', { path: '/' }); return c.json({ ok: true }); });
+const staffOnly = (c: any) => { const a = userOf(c); return a && a.role !== 'client' ? null : c.json({ error: a ? 'Clients see their own documents and questions, not the workpaper.' : 'Sign in first.' }, a ? 403 : 401); };
 app.get('/api/packet', c => staffOnly(c) ?? c.body(MASKED_PACKET, 200, { 'content-type': 'application/json', 'cache-control': 'private, no-store' }));
 app.get('/api/findings', c => staffOnly(c) ?? c.body(FINDINGS, 200, { 'content-type': 'application/json' }));
 app.get('/api/events', c => {
   const a = userOf(c);
+  if (!a) return c.json({ error: 'Sign in first.' }, 401);
   return c.json(allEvents().filter(e => e.seq > Number(c.req.query('after') ?? 0) && visibleTo(a, e, people)).map(masked));
 });
 // What a client sees of the packet: their household, their questionnaire and messages, and the documents
@@ -121,7 +143,8 @@ app.get('/api/attachments/:id', c => {
 });
 
 app.post('/api/events', async c => {
-  const a = actorOf(c.req.header('x-user'));
+  const a = userOf(c);
+  if (!a) return c.json({ error: 'Sign in first.' }, 401);
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body.type !== 'string' || !Array.isArray(body.refs)) return c.json({ error: 'Send a type and refs.' }, 400);
   const why = refuse(a, body, allEvents(), g);
@@ -137,8 +160,8 @@ app.post('/api/events', async c => {
 // Unmask one thing. Staff need sensitive-data clearance; clients see their own household's data.
 // Every request is logged, refusals included.
 app.post('/api/reveal', async c => {
-  const a = actorOf(c.req.header('x-user'));
-  if (!a) return c.json({ error: 'Pick who you are in the role switcher first.' }, 401);
+  const a = userOf(c);
+  if (!a) return c.json({ error: 'Sign in first.' }, 401);
   const { ref } = await c.req.json().catch(() => ({ ref: '' }));
   const value = reveal(String(ref));
   if (value === undefined) return c.json({ error: 'Nothing sensitive at that reference.' }, 404);
@@ -174,7 +197,7 @@ app.post('/api/admin/reset', async c => {
   return c.json({ ok: true, events: allEvents().length });
 });
 
-app.get('/api/stream', c => streamSSE(c, async s => {
+app.get('/api/stream', c => (!userOf(c) ? c.json({ error: 'Sign in first.' }, 401) : streamSSE(c, async s => {
   const a = userOf(c);
   const send = (e: StoredEvent | 'reset') => {
     if (e === 'reset') return void s.writeSSE({ event: 'reset', data: '' });
@@ -184,7 +207,7 @@ app.get('/api/stream', c => streamSSE(c, async s => {
   s.onAbort(() => { listeners.delete(send); });
   await s.writeSSE({ event: 'hello', data: '' }); // flush headers so clients see the stream open
   while (!s.aborted) await s.sleep(25000).then(() => s.writeSSE({ event: 'ping', data: '' }));
-}));
+})));
 
 if (existsSync(root + 'dist')) {
   app.use('/*', serveStatic({ root: 'dist' }));

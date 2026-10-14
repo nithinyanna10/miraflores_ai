@@ -9,10 +9,12 @@ const browser = await chromium.launch(existsSync(local) ? { executablePath: loca
 const ok = (v: unknown, m: string) => { if (!v) throw new Error('FAIL: ' + m); console.log('ok:', m); };
 const errors: string[] = [];
 async function as(user: string, hash: string): Promise<Page> {
-  const p = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  // Sign in the way a person does: the server sets the session cookie.
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  await ctx.request.post(`${base}/api/session`, { data: { person: user } });
+  const p = await ctx.newPage();
   p.on('pageerror', e => errors.push(e.message));
-  await p.addInitScript(u => localStorage.setItem('user', u), user);
-  await p.goto(`${base}/${hash}`);
+  await p.goto(`${base}/app${hash}`);
   await p.waitForSelector('.outline-area, .client-col');
   await p.waitForTimeout(300);
   return p;
@@ -40,7 +42,7 @@ p = await as('st-03', '#line=SchC.1');
 await p.click('text=Approve the adjustment');
 await p.waitForSelector('text=Approved by Helen Strand');
 ok(await blocking(p) === before - 1, 'partner approval clears the blocker');
-await p.goto(`${base}/`); await p.waitForSelector('.adjusted-strip');
+await p.goto(`${base}/app`); await p.waitForSelector('.adjusted-strip');
 ok(await p.locator('.adjusted-strip').innerText().then(t => t.includes('federal tax by −4,402')), 'home shows the return as adjusted');
 await p.screenshot({ path: 'shots/p3-home.png' });
 await p.close();
@@ -60,9 +62,10 @@ ok(await p.locator('.finding-error').count() === 1, 'reversed adjustment re-open
 await p.close();
 
 // 4. Since I last looked: Daniel looks, Priya works, Daniel sees exactly what changed
-const daniel = await browser.newPage({ viewport: { width: 1280, height: 860 } });
-await daniel.addInitScript(() => localStorage.setItem('user', 'st-02'));
-await daniel.goto(`${base}/`); await daniel.waitForSelector('.outline-area'); await daniel.waitForTimeout(300);
+const danielCtx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+await danielCtx.request.post(`${base}/api/session`, { data: { person: 'st-02' } });
+const daniel = await danielCtx.newPage();
+await daniel.goto(`${base}/app`); await daniel.waitForSelector('.outline-area'); await daniel.waitForTimeout(300);
 await daniel.click('text=Nothing new').catch(() => {});
 await daniel.locator('.drawer >> text=Mark all as seen').click().catch(() => {});
 

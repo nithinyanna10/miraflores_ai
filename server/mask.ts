@@ -17,10 +17,11 @@ export function buildMasker(P: any) {
     /\b\d{3}-\d{2}-\d{4}\b/g,                 // any SSN-shaped number
     /\b[A-Z]{2}\d{2}(?: \d{4}){4,7}\b/g,       // IBAN with spaces
     /\b(PIN )(\d{5,6})\b/g,                    // e-file signature PINs in timeline text
+    /("pin":")(\d{5})"/g,                    // signature PINs in event payloads
   ];
   return function mask(text: string): string {
     let out = text.replace(literalRe, keepLast4);
-    out = out.replace(patterns[0], keepLast4).replace(patterns[1], keepLast4).replace(patterns[2], (_m, a, b) => a + keepLast4(b));
+    out = out.replace(patterns[0], keepLast4).replace(patterns[1], keepLast4).replace(patterns[2], (_m, a, b) => a + keepLast4(b)).replace(patterns[3], (_m, a, b) => `${a}${keepLast4(b)}"`);
     return out;
   };
 }

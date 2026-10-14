@@ -57,11 +57,16 @@ Plain, specific, active. Buttons say what happens: "Verify against document", "S
 ## Quality bar and process
 Before building each screen, write a 5-line plan in NOTES.md. After building, run the app, take Playwright screenshots (Chromium is installed), look at them, and fix anything that looks generic, cramped or misaligned before telling me it's done. Keyboard focus visible, works at 1280px and degrades sensibly to tablet.
 
-## Sign-in screen (first thing anyone sees)
-No passwords. It is the role switcher, made into a real entry point. Split layout on the Desk background.
+## Sign-in screen (the first page at the root URL)
+The root URL always opens sign-in. No workpaper data loads until someone signs in. Every app route redirects to sign-in when there is no session, and returns to the requested page after sign-in (deep links keep working). The session is a server-side cookie holding the person id; the server takes the role from it, never from the client.
 
-Left (about 55%): a small looping animation of what the product does, drawn in SVG, no libraries. One white W-2 page sits on the desk. A field (box 1, 104,600.00) highlights, a thread draws from it to a return line "Wages 212,400" which ticks to Verified in teal. Then a second thread draws from a 1099-B lot whose basis reads 0 and breaks in Copy A red, and a one-line fix fades in: "Supplemental statement gives 19,100". Hold, then loop. About 8 seconds, slow and calm. One line of plain copy under it: "Every number, traced to the page it came from." With prefers-reduced-motion, show the final frame static.
+Background for this page only: soft off-white #F6F6F3. Three columns, vertically centered, generous whitespace:
 
-Right (about 45%): firm name, the return ("Okafor-Lindqvist, 2025 joint return, CA to TX"), then the people as a list from firm.staff and firm.client_users. Each row: name, role, credential, one plain line of what they can do here ("Prepares and verifies lines; can't sign off on areas they prepared"), and a quiet badge if they can see unmasked SSNs. Clicking a row signs in as that person. Group staff and client separately. Show the deadline next to the return (extension date from firm.deadlines).
+Left (small, about 280px): a friendly, funny SVG animation, no numbers or tables. A little magnifying glass with two dot eyes hops onto a receipt. Two identical coins pop out of the receipt ("counted twice"), the glass does a double take (eyes widen, small tilt), one coin poofs into a puff, a round teal "Checked" stamp thumps onto the receipt, and the glass does a happy wiggle. About 7 seconds, loop with a pause, soft easing. Palette limited to ink, teal and one muted lilac. prefers-reduced-motion shows the final frame. One short line below it, muted: "We find the doubles so you don't have to."
 
-Inside the app, the header shows who you are with a "Switch person" link that returns here. The server still enforces every role.
+Center: white card with soft shadow. Header: initials avatar, name, role of the selected person. Email field prefilled with the person's firm email (make one up from their name at the firm's domain), Password field with placeholder "Not checked in this prototype", primary button "Sign in as <first name>". Small note under it: "No real authentication in this prototype. Pick a person on the right."
+Above the card, centered: firm name, then "Sign in to your workspace" in Source Serif 4 italic.
+
+Right (about 420px): "Choose who's signing in" then the people from firm.staff and firm.client_users only (never invented names), grouped "Firm" and "Client". Each row: initials avatar, name, role and credential, one muted line of what they can do here. Selected row has an ink outline. Arrow keys move the selection, Enter signs in.
+
+Inside the app the header shows the person and a "Change role" link that signs out and returns to this page.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Actor } from '../shared/policy.ts';
 
 type Person = Actor & { credential?: string | null };
@@ -7,102 +7,125 @@ type Meta = { firm: string; client: string; return: string; extended?: string };
 // One plain line per role: what this person can do here. The server enforces all of it.
 const CAN: Record<string, string> = {
   preparer: 'Prepares and verifies lines; can\'t sign off on areas they prepared.',
-  reviewer: 'Reviews the work, writes review notes that block filing, and signs off on areas they did not prepare.',
-  partner: 'Approves adjustments over 1,000, clears any review note, and signs off last.',
+  reviewer: 'Reviews the work, writes review notes that block filing, signs off on what they did not prepare.',
+  partner: 'Approves adjustments over 1,000, clears any review note, signs off last and transmits.',
   firm_administrator: 'Resets the demo and reads the view log; cannot change the return.',
   quality_reviewer: 'Reviews returns after filing.',
-  client: 'Answers questions from the firm and sees their own documents; nothing internal.',
+  client: 'Answers the firm\'s questions, sees their own documents, approves and signs.',
 };
 const ROLE: Record<string, string> = { preparer: 'Preparer', reviewer: 'Reviewer', partner: 'Partner', firm_administrator: 'Firm administrator', quality_reviewer: 'Quality reviewer', client: 'Client' };
+const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2);
 const longDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+const emailOf = (p: Person, firm: string) => `${p.name.toLowerCase().replace(/[^a-z ]/g, '').split(' ').join('.')}@${firm.toLowerCase()}.example`;
 
-export function signInAs(id: string | null) {
-  try { id ? localStorage.setItem('user', id) : localStorage.removeItem('user'); } catch {}
-  location.hash = '';
-  location.reload();
+export async function signOut() {
+  await fetch('/api/session', { method: 'DELETE' });
+  location.href = '/';
 }
 
 export function SignIn({ people }: { people: Person[] }) {
   const [meta, setMeta] = useState<Meta | null>(null);
+  const ordered = [...people.filter(p => p.role !== 'client'), ...people.filter(p => p.role === 'client')];
+  const [sel, setSel] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const list = useRef<HTMLDivElement>(null);
   useEffect(() => { fetch('/api/meta').then(r => r.json()).then(setMeta); }, []);
+  const p = ordered[sel];
   const today = new Date().toISOString().slice(0, 10);
-  const row = (p: Person) => {
-    const notYet = p.active_from && p.active_from > today;
+
+  const signIn = async (person: Person) => {
+    setBusy(true); setError(null);
+    const r = await fetch('/api/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ person: person.id }) });
+    if (!r.ok) { setBusy(false); return setError((await r.json()).error); }
+    const next = new URLSearchParams(location.search).get('next');
+    location.href = next && next.startsWith('/app') ? next : '/app';
+  };
+  // Arrow keys move the selection; Enter signs in (unless typing in the card's fields).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest('input')) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSel(s => Math.min(ordered.length - 1, s + 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setSel(s => Math.max(0, s - 1)); }
+      else if (e.key === 'Enter' && p && !busy) { e.preventDefault(); signIn(p); }
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, [sel, ordered.length, busy]);
+  useEffect(() => { list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }); }, [sel]);
+
+  const row = (q: Person) => {
+    const i = ordered.indexOf(q);
+    const notYet = q.active_from && q.active_from > today;
     return (
-      <li key={p.id}>
-        <button onClick={() => signInAs(p.id)}>
-          <span className="who"><strong>{p.name}</strong><span className="muted">{ROLE[p.role] ?? p.role}{p.credential ? `, ${p.credential}` : ''}</span></span>
-          <span className="can">{notYet ? `Starts ${longDate(p.active_from!)}; can read the return but not act on it yet.` : CAN[p.role]}{p.role !== 'client' && !p.sensitive_data_clearance ? ' SSNs and account numbers stay masked.' : ''}</span>
-          {p.role !== 'client' && p.sensitive_data_clearance && !notYet && <span className="badge">Sees unmasked SSNs</span>}
-        </button>
-      </li>
+      <button key={q.id} role="option" aria-selected={i === sel} className={`person${i === sel ? ' is-selected' : ''}`} onClick={() => setSel(i)} onDoubleClick={() => signIn(q)}>
+        <span className="avatar" aria-hidden>{initials(q.name)}</span>
+        <span className="person-text">
+          <span className="person-name">{q.name}</span>
+          <span className="person-role">{ROLE[q.role] ?? q.role}{q.credential ? `, ${q.credential}` : ''}</span>
+          <span className="person-can">{notYet ? `Starts ${longDate(q.active_from!)}; can read but not act yet.` : CAN[q.role]}</span>
+        </span>
+      </button>
     );
   };
+
   return (
     <main className="signin">
-      <section className="signin-story" aria-label="What this workpaper does">
-        <ProofLoop />
-        <p className="signin-line">Every number, traced to the page it came from.</p>
+      <section className="signin-fun" aria-label="Animation: a magnifying glass finds a receipt counted twice">
+        <Doubles />
+        <p className="muted">We find the doubles so you don't have to.</p>
       </section>
+
+      <section className="signin-center">
+        <p className="signin-firm">{meta?.firm ?? 'Miraflores'}</p>
+        <h1 className="signin-title">Sign in to your workspace</h1>
+        {p && (
+          <form className="signin-card" onSubmit={e => { e.preventDefault(); signIn(p); }}>
+            <header><span className="avatar large" aria-hidden>{initials(p.name)}</span><span><strong>{p.name}</strong><span className="muted">{ROLE[p.role]}{p.credential ? `, ${p.credential}` : ''}</span></span></header>
+            <label>Email<input value={emailOf(p, meta?.firm ?? 'miraflores')} readOnly /></label>
+            <label>Password<input type="password" placeholder="Not checked in this prototype" autoComplete="off" /></label>
+            <button className="btn primary" disabled={busy}>{busy ? 'Signing in…' : `Sign in as ${p.name.split(' ')[0]}`}</button>
+            {error && <p className="warn">{error}</p>}
+            <p className="muted small">No real authentication in this prototype. Pick a person on the right.</p>
+          </form>
+        )}
+        {meta && <p className="muted small signin-return">{meta.client}, {meta.return}.{meta.extended ? <><br />Extended due date {longDate(meta.extended)}</> : null}</p>}
+      </section>
+
       <section className="signin-people">
-        <p className="muted">{meta?.firm ?? 'Miraflores'}</p>
-        <h1>{meta?.client ?? 'Loading the return…'}</h1>
-        {meta && <p className="signin-return">{meta.return[0].toUpperCase() + meta.return.slice(1)}{meta.extended ? <span className="muted">, extended due date {longDate(meta.extended)}</span> : null}</p>}
-        <h2>Firm</h2>
-        <ul className="people">{people.filter(p => p.role !== 'client').map(row)}</ul>
-        <h2>Client</h2>
-        <ul className="people">{people.filter(p => p.role === 'client').map(row)}</ul>
-        <p className="muted signin-note">No passwords in this demo: choose a person to see the return as they would. The server checks every action against that person's role.</p>
+        <h2>Choose who's signing in</h2>
+        <div ref={list} role="listbox" aria-label="People" aria-activedescendant={p?.id}>
+          <h3>Firm</h3>
+          {ordered.filter(q => q.role !== 'client').map(row)}
+          <h3>Client</h3>
+          {ordered.filter(q => q.role === 'client').map(row)}
+        </div>
       </section>
     </main>
   );
 }
 
-// The product in eight seconds: a field traced and verified, then a field that breaks the thread.
-// Base styles are the final frame; the keyframes only run when motion is allowed.
-function ProofLoop() {
+// A magnifying glass hops onto a receipt; two identical coins pop out ("counted twice"); it does a double
+// take; one coin goes poof; a teal "Checked" stamp thumps down; happy wiggle. Base styles are the final frame.
+function Doubles() {
   return (
-    <svg className="loop" viewBox="0 0 640 430" role="img" aria-label="A W-2 field is traced to the Wages line, which becomes Verified. A 1099-B lot with zero basis breaks its thread in red; the fix reads: supplemental statement gives 19,100.">
-      {/* W-2 page */}
-      <g className="page">
-        <rect x="30" y="30" width="250" height="170" rx="2" />
-        <text x="50" y="62" className="doc-title">Form W-2  2025</text>
-        <text x="50" y="84" className="doc-text">Corvane Systems, Inc.</text>
-        <rect className="hl hl-1" x="44" y="100" width="222" height="26" rx="2" />
-        <text x="50" y="118" className="doc-text">Box 1</text><text x="258" y="118" className="doc-text num-end">104,600.00</text>
-        <text x="50" y="146" className="doc-text faint">Box 2</text><text x="258" y="146" className="doc-text faint num-end">15,800.00</text>
-        <text x="50" y="174" className="doc-text faint">Box 5</text><text x="258" y="174" className="doc-text faint num-end">112,000.00</text>
+    <svg className="doubles" viewBox="0 0 280 260" role="img" aria-label="A magnifying glass finds a duplicate coin on a receipt, removes it, and stamps the receipt Checked.">
+      <g className="receipt">
+        <path d="M95 92 H185 V222 L176 214 L167 222 L158 214 L149 222 L140 214 L131 222 L122 214 L113 222 L104 214 L95 222 Z" />
+        <line x1="108" y1="112" x2="172" y2="112" /><line x1="108" y1="126" x2="160" y2="126" /><line x1="108" y1="140" x2="168" y2="140" /><line x1="108" y1="154" x2="150" y2="154" />
       </g>
-      {/* 1099-B page */}
-      <g className="page">
-        <rect x="30" y="230" width="250" height="170" rx="2" />
-        <text x="50" y="262" className="doc-title">Form 1099-B  2025</text>
-        <text x="50" y="284" className="doc-text">Lot N1, Corvane RSU</text>
-        <text x="50" y="314" className="doc-text faint">Proceeds</text><text x="258" y="314" className="doc-text faint num-end">19,240.00</text>
-        <rect className="hl hl-2" x="44" y="326" width="222" height="26" rx="2" />
-        <text x="50" y="344" className="doc-text">Basis</text><text x="258" y="344" className="doc-text num-end">0.00</text>
+      <g className="coin coin-a"><circle cx="108" cy="50" r="16" /><circle cx="108" cy="50" r="9" className="inner" /></g>
+      <g className="coin coin-b"><circle cx="172" cy="50" r="16" /><circle cx="172" cy="50" r="9" className="inner" /></g>
+      <g className="puff"><circle cx="164" cy="42" r="6" /><circle cx="181" cy="46" r="5" /><circle cx="171" cy="60" r="7" /></g>
+      <text className="twice" x="140" y="16">counted twice</text>
+      <g className="stamp"><circle cx="140" cy="176" r="28" /><text x="140" y="180">Checked</text></g>
+      <g className="glass">
+        <g className="glass-body">
+          <line x1="232" y1="118" x2="252" y2="140" className="handle" />
+          <circle cx="216" cy="102" r="22" className="lens" />
+          <g className="eyes"><circle cx="209" cy="100" r="3" /><circle cx="223" cy="100" r="3" /></g>
+        </g>
       </g>
-      {/* return lines */}
-      <g className="line-card">
-        <rect x="380" y="72" width="230" height="62" rx="2" />
-        <text x="420" y="96" className="ui-small">Form 1040 line 1a</text>
-        <text x="420" y="120" className="ui">Wages</text><text x="596" y="120" className="ui num-end strong">212,400</text>
-        <circle className="st-open" cx="400" cy="103" r="7" />
-        <g className="st-ok"><circle cx="400" cy="103" r="8" /><path d="M396 103 L399 106 L404.5 99.5" /></g>
-      </g>
-      <g className="line-card">
-        <rect x="380" y="272" width="230" height="62" rx="2" />
-        <text x="420" y="296" className="ui-small">Form 8949 box B, lot N1</text>
-        <text x="420" y="320" className="ui">Short-term sale</text><text x="596" y="320" className="ui num-end strong">19,240</text>
-        <circle className="st-open-2" cx="400" cy="303" r="7" />
-        <g className="st-bad"><rect x="392" y="295" width="16" height="16" rx="1" /><path d="M396.5 299.5 L403.5 306.5 M403.5 299.5 L396.5 306.5" /></g>
-      </g>
-      {/* threads */}
-      <path className="thread t1" d="M266 113 C 320 113, 330 103, 380 103" pathLength={1} />
-      <path className="thread t2a" d="M266 339 C 300 339, 312 330, 322 322" pathLength={1} />
-      <path className="thread t2b" d="M334 314 C 350 305, 360 303, 380 303" />
-      <path className="break" d="M318 312 L340 324" />
-      <text x="380" y="366" className="fix">Supplemental statement gives 19,100</text>
     </svg>
   );
 }
