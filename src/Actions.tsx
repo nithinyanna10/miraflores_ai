@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { can, LEVELS, scopeHash, scopeName, NEEDS_PARTNER_OVER, type Actor } from '../shared/policy.ts';
-import { fmt, effectOf, type Finding, type Graph } from '../shared/packet.ts';
+import { fmt, effectOf, knockOns, type Finding, type Graph } from '../shared/packet.ts';
 import { StatusMark } from './StatusMark.tsx';
 import { post, attach, type Workpaper, type ReviewNote, type Question } from './data.ts';
 
@@ -50,7 +50,7 @@ function useAct() {
 export type Form = null | 'verify' | 'note' | 'review' | 'attach' | 'ask' | 'adjust';
 export type Prefill = { to?: number; reason?: string; finding?: string };
 const signed = (n: number) => (n === 0 ? 'no change' : `${n > 0 ? '+' : '−'}${Math.abs(n).toLocaleString('en-US')}`);
-export const effectLine = (e: { federal: number; california: number; kind: string }) => e.kind === 'none' ? 'Tax effect needs an engine recompute' : `${e.kind === 'balance_due' ? 'Balance due' : 'Tax'}: federal ${signed(e.federal)}, California ${signed(e.california)}`;
+export const effectLine = (e: { federal: number; california: number; kind: string }) => e.kind === 'none' ? 'Tax effect needs an engine recompute' : `Estimated ${e.kind === 'balance_due' ? 'balance due' : 'tax'}: federal ${signed(e.federal)}, California ${signed(e.california)} (change x v3 rate)`;
 export function LineActions({ g, w, lineKey, form, setForm, prefill }: { g: Graph; w: Workpaper; lineKey: string; form: Form; setForm: (f: Form) => void; prefill?: Prefill }) {
   const { me, act, error, busy } = useAct();
   const { people } = useSession();
@@ -74,6 +74,7 @@ export function LineActions({ g, w, lineKey, form, setForm, prefill }: { g: Grap
         <div className="adjustment">
           <p><StatusMark status={w.pendingApproval!.includes(adj) ? 'Blocked' : 'Adjusted'} /> <strong>Adjusted</strong> from {fmt(adj.payload.from)} to {fmt(adj.payload.to)} by {nameOf(people, adj.actor)} on {when(adj.at)}.</p>
           <p className="memo">{adj.payload.reason}{adj.payload.authority ? ` Authority: ${adj.payload.authority}.` : ''}</p>
+          {knockOns(lineKey).length > 0 && <p className="recompute-note"><StatusMark status="Question open" /> The estimate leaves out knock-on effects. Needs recompute: {knockOns(lineKey).map(k => g.line(k.line)?.label ?? k.line).join('; ')}.</p>}
           <p className="muted" title={adj.payload.effect.basis}>{effectLine(adj.payload.effect)}. {adj.payload.needs_partner ? (w.approved!.has(adj.seq) ? `Approved by ${nameOf(people, w.events.find(e => e.type === 'adjustment_approved' && e.payload.adjustment === adj.seq)!.actor)}.` : `Over ${NEEDS_PARTNER_OVER.toLocaleString('en-US')}: needs partner approval before filing.`) : ''}</p>
           <div className="action-row">
             {adj.payload.needs_partner && !w.approved!.has(adj.seq) && can(me, 'adjustment_approved') && me!.id !== adj.actor && <button className="btn" disabled={busy} onClick={() => act('adjustment_approved', [lineKey], { adjustment: adj.seq })}>Approve the adjustment</button>}
@@ -139,6 +140,67 @@ export function LineActions({ g, w, lineKey, form, setForm, prefill }: { g: Grap
         </form>
       )}
     </div>
+  );
+}
+
+// ---------- knock-on lines that need a recompute ----------
+export function RecomputeCards({ g, w, lineKey }: { g: Graph; w: Workpaper; lineKey: string }) {
+  const { me, act, error, busy } = useAct();
+  const { people } = useSession();
+  const [text, setText] = useState<Record<string, string>>({});
+  const items = w.recomputes!.filter(r => r.line === lineKey);
+  if (!items.length) return null;
+  return (
+    <div className="review-notes">
+      {items.map(r => {
+        const id = r.line;
+        const what = r.adjustments.map(a => `${g.line(a.refs[0])?.label ?? a.refs[0]} (${fmt(a.payload.from)} to ${fmt(a.payload.to)})`).join('; ');
+        return (
+          <div key={id} className={`review-note question${r.handled ? ' is-cleared' : ''}`}>
+            <p className="finding-title"><StatusMark status={r.handled ? 'Verified' : 'Question open'} /> <span><strong className="finding-state">{r.handled ? 'Recompute recorded.' : 'Needs recompute.'}</strong> Adjusted: {what}.</span></p>
+            <p className="memo note-text">{r.why}</p>
+            {r.handled
+              ? <p className="memo note-reply"><span className="label">{nameOf(people, r.handled.actor)}</span>{r.handled.payload.text}</p>
+              : can(me, 'recompute_recorded') && (
+                <div className="action-row">
+                  <input aria-label="How it was handled" placeholder="How was it handled? Recomputed by hand, adjusted, or immaterial and why" value={text[id] ?? ''} onChange={e => setText({ ...text, [id]: e.target.value })} />
+                  <button className="btn quiet" disabled={busy || !text[id]?.trim()} onClick={() => act('recompute_recorded', [lineKey, ...r.adjustments.map(a => a.refs[0])], { adjustments: r.adjustments.map(a => a.seq), line: lineKey, text: text[id] })}>Record</button>
+                </div>
+              )}
+          </div>
+        );
+      })}
+      {error && <p className="warn">{error}</p>}
+    </div>
+  );
+}
+
+// ---------- explain prior-year variances: one reason each, one or many at a time ----------
+export function ExplainVariances({ items, onDone }: { items: Finding[]; onDone: () => void }) {
+  const { me, toast } = useSession();
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const missing = items.filter(f => !reasons[f.id]?.trim()).length;
+  return (
+    <form className="action-form explain" onSubmit={async e => {
+      e.preventDefault(); if (!me) return;
+      setBusy(true);
+      const refs = [...new Set(items.flatMap(f => f.lines))];
+      const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': me.id }, body: JSON.stringify({ type: 'variance_explained', refs, payload: { reasons: Object.fromEntries(items.map(f => [f.id, reasons[f.id].trim()])) } }) });
+      const ev = await r.json(); setBusy(false);
+      if (!r.ok) return setError(ev.error);
+      toast?.({ text: `Explained ${items.length} ${items.length === 1 ? 'change' : 'changes'} from 2024.`, undo: async () => { await post(me.id, 'variance_explanation_withdrawn', refs, { explanation: ev.seq }); toast?.({ text: 'Explanations withdrawn.' }); } });
+      onDone();
+    }}>
+      {items.map(f => (
+        <label key={f.id}>{f.title.replace(/^(F|Sch)[\w-]*\.[\w.+]+ /, '')}
+          <textarea rows={2} value={reasons[f.id] ?? ''} onChange={e => setReasons({ ...reasons, [f.id]: e.target.value })} placeholder="Why it changed, with the evidence" />
+        </label>
+      ))}
+      <div className="action-row"><button className="btn" disabled={busy || missing > 0}>{items.length === 1 ? 'Record the explanation' : `Record ${items.length} explanations`}</button><button type="button" className="btn quiet" onClick={onDone}>Cancel</button>{missing > 0 && items.length > 1 && <span className="muted">{missing} still need a reason</span>}</div>
+      {error && <p className="warn">{error}</p>}
+    </form>
   );
 }
 

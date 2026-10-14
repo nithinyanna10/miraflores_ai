@@ -108,5 +108,50 @@ ok(true, 'election recorded with reason and authority');
 await daniel.screenshot({ path: 'shots/p3-whatif.png' });
 await daniel.close();
 
+// 8. A Schedule C adjustment flags the SEP limit as needing a recompute; recording how it was handled closes it
+p = await as('st-01', '#line=Sch1.16');
+await p.waitForSelector('text=Needs recompute.');
+await p.fill('.review-note.question input', 'Recomputed by hand: net profit 69,454 less half SE 4,907 = 64,547 x 20% = 12,909; adjusting Sch1.16 next.');
+await p.click('.review-note.question >> text=Record');
+await p.waitForSelector('text=Recompute recorded.');
+ok(true, 'knock-on recompute recorded on the SEP line');
+await p.close();
+
+// 9. Bulk-explain prior-year swings: each needs its own reason; undo restores them
+p = await as('st-01', '');
+await p.click('summary:has-text("changes from 2024")');
+const boxes = p.locator('.item-list.pickable input[type=checkbox]');
+const total = await boxes.count();
+for (let i = 0; i < 3; i++) await boxes.nth(i).check();
+await p.click('text=Explain the 3 selected');
+const areas = p.locator('.explain textarea');
+ok(await areas.count() === 3, 'one reason box per selected change');
+await areas.nth(0).fill('New employer from June; RSU vests.');
+ok(await p.locator('.explain .btn').first().isDisabled(), 'cannot submit until every change has a reason');
+await areas.nth(1).fill('Interest up: Swedish account and sweep balances higher.');
+await areas.nth(2).fill('Capital gains: RSU sales, condo sale, direct indexing.');
+await p.click('text=Record 3 explanations');
+await p.waitForSelector('.toast >> text=Explained 3');
+ok(await p.locator('.item-list.pickable li').count() === total - 3, 'explained changes leave the list');
+await p.click('.toast >> text=Undo');
+await p.waitForSelector('.toast >> text=withdrawn');
+await p.waitForTimeout(300);
+ok(await p.locator('.item-list.pickable li').count() === total, 'undo brings them back');
+await p.close();
+
+// 10. Reset demo: firm administrator only; mid-season scenario replays the season
+p = await as('cu-01', '');
+ok(await p.locator('text=Reset demo').count() === 0, 'client has no reset');
+await p.close();
+p = await as('st-05', '');
+await p.click('text=Reset demo');
+await Promise.all([p.waitForEvent('load'), p.click('text=Mid-season, as of July 2026')]);
+await p.waitForSelector('.outline-area');
+await p.click('.outline-area:has-text("Interest and dividends")');
+ok(await p.locator('.signoff-row').filter({ hasText: 'Reopened' }).count() === 2, 'mid-season: Interest sign-offs reopened by a later verification');
+await p.click('.outline-area:has-text("Wages")');
+ok(await p.locator('.signoff-row').filter({ hasText: 'Signed by Daniel Ortiz' }).count() === 1, 'mid-season: Wages signed by the reviewer');
+await p.close();
+
 ok(errors.length === 0, `no page errors ${errors.join('; ')}`);
 await browser.close();

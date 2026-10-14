@@ -6,7 +6,7 @@ import { Thread } from './Thread.tsx';
 import { DocPane } from './DocPane.tsx';
 import { Palette } from './Palette.tsx';
 import { StatusMark } from './StatusMark.tsx';
-import { Session, SignoffPanel, type Form, type Toast } from './Actions.tsx';
+import { Session, SignoffPanel, ExplainVariances, type Form, type Toast } from './Actions.tsx';
 import { can, type Actor } from '../shared/policy.ts';
 import { ClientApp } from './ClientApp.tsx';
 import { ChangesDrawer, Compare, WhatIfs, readCursor, writeCursor } from './Views.tsx';
@@ -114,6 +114,7 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
           <button aria-current={sel.view === 'whatif'} onClick={() => go({ view: 'whatif' })}>What-ifs</button>
         </nav>
         <button className="search" onClick={() => setPalette(true)}>Search <kbd>⌘K</kbd></button>
+        {me?.role === 'firm_administrator' && <ResetDemo user={user} />}
         <RoleSwitch people={people} user={user} />
         <span className={`live${w.live ? ' on' : ''}`} title={w.live ? 'Changes from colleagues appear as they happen' : 'Not connected; changes from others appear on reload'}>{w.live ? 'Live' : 'Offline'}</span>
       </header>
@@ -145,6 +146,35 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
   );
 }
 
+// Firm administrator only (the server checks too). Clients never see this.
+function ResetDemo({ user }: { user: string }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async (scenario: string) => {
+    setBusy(scenario);
+    const r = await fetch('/api/admin/reset', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': user }, body: JSON.stringify({ scenario }) });
+    if (!r.ok) { setBusy(null); setError((await r.json()).error); }
+    // success: the server tells every open browser (this one included) to reload
+  };
+  return (
+    <div className="reset">
+      <button className="btn quiet" onClick={() => setOpen(!open)} aria-expanded={open}>Reset demo</button>
+      {open && (
+        <div className="reset-panel" role="dialog" aria-label="Reset the demo">
+          <p>This erases every verification, note, adjustment, sign-off, question and file for everyone. The packet and the audit's open items stay.</p>
+          <button className="btn" disabled={!!busy} onClick={() => run('clean')}>{busy === 'clean' ? 'Resetting…' : 'Clean start'}</button>
+          <p className="muted">Only the 94 open items from the audit.</p>
+          <button className="btn" disabled={!!busy} onClick={() => run('midseason')}>{busy === 'midseason' ? 'Resetting…' : 'Mid-season, as of July 2026'}</button>
+          <p className="muted">Wages and Interest signed; Interest reopened by a later verification; RSU and gross-receipts adjustments approved by the partner; two client questions answered; one review note open.</p>
+          {error && <p className="warn">{error}</p>}
+          <button className="link" onClick={() => setOpen(false)}>Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The thread's last hop: a connector from the selected step to the marked text on the page.
 function Connector({ deps }: { deps: unknown[] }) {
   const [d, setD] = useState<{ path: string; x: number; y: number; broken: boolean; off: boolean } | null>(null);
@@ -165,7 +195,7 @@ function Connector({ deps }: { deps: unknown[] }) {
         const sheet = target.closest('.sheet')?.getBoundingClientRect() ?? b;
         const y2 = Math.min(Math.max(raw, pr.top + 12), pr.bottom - 12), x2 = sheet.left + 14;
         const cx = (x1 + x2) / 2;
-        setD({ path: `M${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`, x: x2, y: y2, broken: !!hop.closest('.is-broken'), off: raw !== y2 });
+        setD({ path: `M${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`, x: x2, y: y2, broken: !!hop.closest('.is-broken') && !hop.closest('.is-question'), off: raw !== y2 });
       });
     };
     update();
@@ -207,6 +237,8 @@ function Home({ g, w, onFinding, onLine }: { g: Graph; w: Workpaper; onFinding: 
   ];
   const [allBlock, setAllBlock] = useState(false);
   const [allQ, setAllQ] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [explaining, setExplaining] = useState(false);
   const blockers = [...w.blocking!].sort((a, b) => effectSize(b) - effectSize(a));
   const notes = w.openNotes!;
   const pending = w.pendingApproval!;
@@ -215,14 +247,15 @@ function Home({ g, w, onFinding, onLine }: { g: Graph; w: Workpaper; onFinding: 
   const sgn = (n: number) => (n === 0 ? 'no change' : `${n > 0 ? '+' : '−'}${Math.abs(n).toLocaleString('en-US')}`);
   const questions = w.findings!.filter(f => f.severity === 'judgment' || (f.severity === 'warning' && f.check !== 'prior_year_variance')).sort((a, b) => effectSize(b) - effectSize(a));
   const swings = w.findings!.filter(f => f.check === 'prior_year_variance');
-  const item = (f: Finding) => {
+  const item = (f: Finding) => <li key={f.id}>{itemButton(f)}</li>;
+  const itemButton = (f: Finding) => {
     const k = f.lines.find(x => L[x]);
     return (
-      <li key={f.id}><button onClick={() => onFinding(f)}>
+      <button onClick={() => onFinding(f)}>
         <StatusMark status={severityStatus(f.severity)!} />
         <span className="item-title">{f.title.replace(/^(F|Sch)[\w-]*\.[\w.+]+ /, '')}<span className="item-where">{k ? `${areaOf(k)}, ${isLot(k) ? lotLabel(L[k]) : label(L[k])}` : 'Whole return'}</span></span>
         <span className="item-effect num">{f.tax_effect ? `${fmt(f.tax_effect.federal)} / ${fmt(f.tax_effect.california)}` : ''}</span>
-      </button></li>
+      </button>
     );
   };
   const ledger = (title: string, prior: string, rows: [string, string, number | null][]) => (
@@ -264,17 +297,28 @@ function Home({ g, w, onFinding, onLine }: { g: Graph; w: Workpaper; onFinding: 
         {blockers.length > 5 && <button className="more" onClick={() => setAllBlock(!allBlock)}>{allBlock ? 'Show the top 5' : `Show all ${blockers.length}`}</button>}
       </section>
       <section className="items">
-        <h2><StatusMark status="Question open" size={14} /> {questions.length} questions and judgment calls</h2>
-        <ul className="item-list">{(allQ ? questions : questions.slice(0, 5)).map(item)}</ul>
+        <h2><StatusMark status="Question open" size={14} /> {questions.length + w.openRecomputes!.length} questions and judgment calls</h2>
+        <ul className="item-list">
+          {w.openRecomputes!.map(r => <li key={r.line}><button onClick={() => onLine(r.line)}><StatusMark status="Question open" /><span className="item-title">Needs recompute: {L[r.line] ? label(L[r.line]) : r.line}<span className="item-where">Because {r.adjustments.map(a => (L[a.refs[0]] ? label(L[a.refs[0]]) : a.refs[0])).join(', ')} {r.adjustments.length === 1 ? 'was' : 'were'} adjusted. {r.why}</span></span><span /></button></li>)}{(allQ ? questions : questions.slice(0, 5)).map(item)}</ul>
         {questions.length > 5 && <button className="more" onClick={() => setAllQ(!allQ)}>{allQ ? 'Show the top 5' : `Show all ${questions.length}`}</button>}
       </section>
       <section className="items">
         <h2>Sign-off on the whole return</h2>
         <SignoffPanel g={g} w={w} scope="area:Whole return" />
       </section>
-      <details className="items">
-        <summary>{swings.length} changes from 2024 over the firm threshold need an explanation</summary>
-        <ul className="item-list">{swings.map(item)}</ul>
+      <details className="items" open={explaining || picked.size > 0 || undefined}>
+        <summary>{swings.length ? `${swings.length} changes from 2024 over the firm threshold need an explanation` : 'Every change from 2024 over the firm threshold is explained'}</summary>
+        {explaining
+          ? <ExplainVariances items={swings.filter(f => picked.has(f.id))} onDone={() => { setExplaining(false); setPicked(new Set()); }} />
+          : <>
+            <div className="action-row bulk-bar">
+              <label className="check"><input type="checkbox" checked={picked.size === swings.length && swings.length > 0} onChange={e => setPicked(e.target.checked ? new Set(swings.map(f => f.id)) : new Set())} /> Select all</label>
+              <button className="btn quiet" disabled={!picked.size} onClick={() => setExplaining(true)}>Explain the {picked.size || ''} selected</button>
+            </div>
+            <ul className="item-list pickable">{swings.map(f => (
+              <li key={f.id}><input type="checkbox" aria-label={`Select ${f.title}`} checked={picked.has(f.id)} onChange={e => { const n = new Set(picked); e.target.checked ? n.add(f.id) : n.delete(f.id); setPicked(n); }} />{itemButton(f)}</li>
+            ))}</ul>
+          </>}
       </details>
     </article>
   );

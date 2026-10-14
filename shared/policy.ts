@@ -25,6 +25,9 @@ export const ALLOWED: Record<string, string[]> = {
   signoff_withdrawn: WORKERS,
   adjusted: WORKERS,
   election_recorded: WORKERS,
+  recompute_recorded: WORKERS,
+  variance_explained: WORKERS,
+  variance_explanation_withdrawn: WORKERS,
   adjustment_reversed: WORKERS,
   adjustment_approved: ['partner'],
   finding_resolved: ['reviewer', 'partner'],
@@ -35,7 +38,7 @@ export const ALLOWED: Record<string, string[]> = {
 export const VERB: Record<string, string> = {
   verified: 'verify a number', verification_withdrawn: 'withdraw a verification', note: 'add a note',
   review_note_opened: 'write a review note', review_note_replied: 'reply to a review note', review_note_cleared: 'clear a review note',
-  adjusted: 'adjust a line', election_recorded: 'record an election', adjustment_reversed: 'reverse an adjustment', adjustment_approved: 'approve an adjustment', signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
+  adjusted: 'adjust a line', election_recorded: 'record an election', recompute_recorded: 'record a recompute', variance_explained: 'explain a variance', variance_explanation_withdrawn: 'withdraw a variance explanation', adjustment_reversed: 'reverse an adjustment', adjustment_approved: 'approve an adjustment', signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
 };
 export const can = (a: Actor | undefined, type: string) => !!a && isActive(a) && (ALLOWED[type] ?? []).includes(a.role);
 
@@ -59,6 +62,19 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
   // Firm rule: every judgment call records the authority relied on.
   if (e.type === 'election_recorded' && (!String(e.payload?.reason ?? '').trim() || !String(e.payload?.authority ?? '').trim() || !['adopt', 'reject'].includes(e.payload?.decision)))
     return 'Record the decision, the reason and the authority relied on.';
+  if (e.type === 'recompute_recorded') {
+    const ids: number[] = e.payload?.adjustments ?? [];
+    if (!ids.length || !ids.every(id => log.some(x => x.type === 'adjusted' && x.seq === id))) return 'Name the adjustments this recompute covers.';
+    if (!String(e.payload?.text ?? '').trim()) return 'Say how the knock-on effect was handled: recomputed by hand, adjusted, or immaterial and why.';
+  }
+  // Each prior-year variance needs its own reason, even when explained in bulk.
+  if (e.type === 'variance_explained') {
+    const reasons = e.payload?.reasons ?? {};
+    const ids = Object.keys(reasons);
+    if (!ids.length) return 'Pick at least one change from 2024.';
+    const missing = ids.filter(id => !String(reasons[id] ?? '').trim());
+    if (missing.length) return `Each change needs its own reason. Missing: ${missing.join(', ')}.`;
+  }
   if (e.type === 'adjusted') {
     const l = g.lines.v3[e.refs[0]];
     if (!l || typeof l.value !== 'number') return 'Only numeric return lines can be adjusted.';

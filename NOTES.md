@@ -93,7 +93,7 @@ Stack decisions:
 ## Deploy
 - **One Fly machine** with a volume at `/data` (event log + attachments). SQLite means a single writer, so `--ha=false`. The packet and findings ship in the image, read-only.
 - **Node pinned to 22.22.2** (`node:sqlite` is unflagged from 22.13).
-- `node scripts/e2e-phase2.ts <url>` runs the same 23 browser checks against any deployment. It writes test data, so run it on a fresh volume.
+- `node scripts/e2e-phase2.ts <url>` runs the same 22 browser checks against any deployment. It writes test data, so run it on a fresh volume.
 
 ## Phase 3 (in progress): changes
 - **Adjustments keep the original.** An `adjusted` event records from, to, reason, the authority relied on, and the open item it addresses.
@@ -108,3 +108,26 @@ Stack decisions:
 - **Version compare.** Any two engine versions, with the trigger, documents added or superseded, summary deltas, and changed lines grouped by area. Lots collapse behind a toggle.
 - **What-ifs.** The engine's precomputed alternatives, each with its federal and California effect. Choosing one is an `election_recorded` event; the server refuses it without a reason and an authority (firm rule: every judgment call records the authority).
 - **Checks:** `node scripts/e2e-phase3.ts` (17 checks).
+
+### Decision: no propagation of adjustments into dependent totals
+- **What we do instead.** The readme says the engine cannot be rerun and tax effect = change x rate. So an adjustment changes its own line and carries a labelled *estimate* (change x v3 rate). Totals built from it keep the engine's value, and Home shows "the return as adjusted" only as a first-order estimate.
+- **Why not propagate.** Re-deriving totals ourselves would mean writing a second tax engine that disagrees with the first. Recomputing the sums would be easy, but the tax, AMT, QBI, phase-outs and California proration cannot be recomputed honestly.
+- **Known knock-ons are flagged instead** (`knockOns()` in `shared/packet.ts`):
+  - A Schedule C change moves the SEP limit (R-SEP-LIMIT) and the SE health insurance limit (R-SEHI).
+  - An SEP or SEHI change moves the QBI deduction, which the readme says the adjustment rate does not capture.
+  - Each affected line gets one "Needs recompute" judgment item covering every live adjustment that moves it. A preparer closes it by recording how it was handled (recomputed by hand, adjusted, or immaterial and why). A later adjustment opens it again.
+- **Ceiling:** the list of knock-ons is hand-written for this return's rules. A real system would recompute.
+
+### Prior-year swing explanations
+- Each variance (the firm standard: over 10% and over 1,000) is closed by a `variance_explained` event. It can be done in bulk, but the payload carries one reason per item, and the server refuses it if any reason is blank. Undo is one compensating event.
+
+### Reset demo (firm administrator only)
+- `POST /api/admin/reset` with `clean` or `midseason`. It wipes events and attachments, reseeds the audit's open items, and tells every connected browser to reload. The server refuses any other role; clients never see the control.
+- **Mid-season** (`server/scenario.ts`) is a script of ordinary events dated along the packet's timeline. The sign-off hashes and adjustment effects are computed exactly as live requests would compute them, so the state is one people could really have produced:
+  - Wages: verified, variance explained, signed by preparer and reviewer.
+  - Interest: two fixes, then signed; reopened by a verification after v3.
+  - Gross receipts, phone/internet and Spotify fixes; the gross-receipts one was approved by the partner.
+  - Three RSU basis fixes, each approved by the partner.
+  - Two client questions, answered with the packet's own msg-07 and msg-08.
+  - One open review note on the SEP excess.
+- **Fly:** `min_machines_running = 1`, auto-stop off, so there is no cold start.

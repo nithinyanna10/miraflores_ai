@@ -3,7 +3,7 @@ import { breakHop, fmt, formName, isLot, labelMaker, locate, severityStatus, typ
 import { StatusMark } from './StatusMark.tsx';
 import { lotLabel } from './Outline.tsx';
 import type { Workpaper } from './data.ts';
-import { LineActions, ReviewNotes, ResolveFinding, ClientQuestions, METHODS, useSession, useBulk, type Form, type Prefill } from './Actions.tsx';
+import { LineActions, ReviewNotes, ResolveFinding, ClientQuestions, RecomputeCards, ExplainVariances, METHODS, useSession, useBulk, type Form, type Prefill } from './Actions.tsx';
 import { can } from '../shared/policy.ts';
 
 type Props = { g: Graph; w: Workpaper; lineKey: string; src?: string; onLine: (k: string, src?: string) => void; onSrc: (ref: string) => void; form: Form; setForm: (f: Form) => void };
@@ -25,6 +25,7 @@ export function proposedValue(f: Finding, l: Line): number | undefined {
 
 export function FindingCard({ f, onApply }: { f: Finding; onApply?: (p: Prefill) => void }) {
   const [why, setWhy] = useState(false);
+  const [explain, setExplain] = useState(false);
   const { me } = useSession();
   const st = severityStatus(f.severity)!;
   return (
@@ -35,9 +36,11 @@ export function FindingCard({ f, onApply }: { f: Finding; onApply?: (p: Prefill)
       {f.detail && <button className="why" aria-expanded={why} onClick={e => { e.stopPropagation(); setWhy(!why); }}>{why ? 'Hide the reasoning' : 'Show the reasoning'}</button>}
       {why && <p className="memo why-text">{f.detail} <span className="ref">{f.id}</span></p>}
       <div className="action-row finding-actions">
+        {f.check === 'prior_year_variance' && can(me, 'variance_explained') && !explain && <button className="btn quiet" onClick={() => setExplain(true)}>Explain this change</button>}
         {onApply && can(me, 'adjusted') && <button className="btn quiet" onClick={e => { e.stopPropagation(); onApply({ finding: f.id, reason: `${f.title} Fix per ${f.id}: ${f.fix ?? ''}` }); }}>Apply the fix</button>}
         <ResolveFinding f={f} />
       </div>
+      {explain && <ExplainVariances items={[f]} onDone={() => setExplain(false)} />}
     </div>
   );
 }
@@ -45,7 +48,7 @@ export function FindingCard({ f, onApply }: { f: Finding; onApply?: (p: Prefill)
 function Hop({ id, status, affected, broken, dashed, children, active, onClick, label }: { id?: string; status: Status; affected?: number; broken?: boolean; dashed?: boolean; children: React.ReactNode; active?: boolean; onClick?: () => void; label?: string }) {
   const marker = status === 'Unverified' && affected ? <span className="affected" title={`Affected by ${affected} open items upstream`} /> : <StatusMark status={status} />;
   return (
-    <li id={id ? `hop-${id}` : undefined} className={`hop${broken ? ' is-broken' : ''}${dashed ? ' is-dashed' : ''}${active ? ' is-active' : ''}`}>
+    <li id={id ? `hop-${id}` : undefined} className={`hop${broken ? ' is-broken' : ''}${broken && status === 'Question open' ? ' is-question' : ''}${dashed ? ' is-dashed' : ''}${active ? ' is-active' : ''}`}>
       <span className="hop-seg" aria-hidden />
       <span className="hop-marker">{marker}</span>
       {onClick ? <button className="hop-body" onClick={onClick} aria-label={label}>{children}</button> : <div className="hop-body">{children}</div>}
@@ -97,6 +100,7 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Pro
         </p>}
         <ReviewNotes notes={w.notesByLine![lineKey] ?? []} />
         <ClientQuestions questions={w.questionsByRef![lineKey] ?? []} onAttachment={onSrc} />
+        <RecomputeCards g={g} w={w} lineKey={lineKey} />
         {breaks.line?.map(f => <FindingCard key={f.id} f={f} />)}
         <LineActions g={g} w={w} lineKey={lineKey} form={form} setForm={setForm} prefill={prefill} />
       </header>
@@ -106,7 +110,7 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Pro
         <Hop id="rule" status={statusAt('rule')} broken={!!breaks.rule}>
           <p className="hop-main"><span>{g.ruleText(l.rule)}</span></p>
           {l.note && <p className="memo">{l.note}</p>}
-          {breaks.rule?.map(f => <FindingCard key={f.id} f={f} onApply={apply(f)} />)}
+          {breaks.rule?.map(f => <FindingCard key={f.id} f={f} onApply={proposedValue(f, l) !== undefined ? apply(f) : undefined} />)}
         </Hop>
 
         {l.inputs.length > 0 && <><Stage>Built from {l.inputs.length} {l.inputs.length === 1 ? 'line' : 'lines'}</Stage><InputHops g={g} w={w} l={l} onLine={onLine} label={label} /></>}
@@ -129,7 +133,7 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Pro
               <p className="hop-main"><span>{n.title}</span>{n.value !== undefined && typeof n.value !== 'object' && <span className="num">{fmt(n.value, ev?.value_type === 'money' && !Number.isInteger(n.value))}</span>}</p>
               {problem && <p className="hop-problem">{problem}</p>}
               {!ev && n.text && <p className="memo clamp">{n.text}</p>}
-              {breaks[s]?.map(f => <FindingCard key={f.id} f={f} onApply={apply(f)} />)}
+              {breaks[s]?.map(f => <FindingCard key={f.id} f={f} onApply={proposedValue(f, l) !== undefined ? apply(f) : undefined} />)}
             </Hop>
           );
         }))}

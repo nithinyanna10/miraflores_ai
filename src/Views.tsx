@@ -14,7 +14,8 @@ const cursorKey = (user: string) => `seen:${user}`;
 export function readCursor(user: string, latest: number): number {
   try {
     const v = localStorage.getItem(cursorKey(user));
-    if (v == null) { localStorage.setItem(cursorKey(user), String(latest)); return latest; } // first visit: nothing is "new"
+    // First visit, or the log was reset since: nothing is "new".
+    if (v == null || Number(v) > latest) { localStorage.setItem(cursorKey(user), String(latest)); return latest; }
     return Number(v);
   } catch { return latest; }
 }

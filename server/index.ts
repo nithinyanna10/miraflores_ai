@@ -10,6 +10,8 @@ import { createHash } from 'node:crypto';
 import { Graph, effectOf } from '../shared/packet.ts';
 import { refuse, isActive, visibleTo, ATTACH_ROLES, NEEDS_PARTNER_OVER, type Actor, type StoredEvent } from '../shared/policy.ts';
 import { buildMasker } from './mask.ts';
+import { seedMidSeason } from './scenario.ts';
+import { rmSync } from 'node:fs';
 
 const root = new URL('../', import.meta.url).pathname;
 const RAW = readFileSync(root + 'data/okafor_lindqvist_2025_packet.json', 'utf8');
@@ -39,27 +41,28 @@ const rowToEvent = (r: any): StoredEvent => ({ ...r, refs: JSON.parse(r.refs), p
 const allEvents = (): StoredEvent[] => (db.prepare('SELECT * FROM events ORDER BY seq').all() as any[]).map(rowToEvent);
 const masked = (e: StoredEvent) => JSON.parse(mask(JSON.stringify(e)));
 
-const listeners = new Set<(e: StoredEvent) => void>();
-function append(actor: string, type: string, refs: string[], payload: any): StoredEvent {
-  const r = insertStmt.run(new Date().toISOString(), actor, type, JSON.stringify(refs), JSON.stringify(payload ?? {}));
+const listeners = new Set<(e: StoredEvent | 'reset') => void>();
+function append(actor: string, type: string, refs: string[], payload: any, at = new Date().toISOString()): StoredEvent {
+  const r = insertStmt.run(at, actor, type, JSON.stringify(refs), JSON.stringify(payload ?? {}));
   const ev = rowToEvent(db.prepare('SELECT * FROM events WHERE seq = ?').get(r.lastInsertRowid));
   for (const l of listeners) l(ev);
   return ev;
 }
 
 // Seed audit findings as open items, once per (packet, finding).
-{
+function seedFindings(at?: string) {
   const f = JSON.parse(readFileSync(root + 'findings.json', 'utf8'));
   if (f.packet_sha256 !== PACKET_SHA) console.warn('findings.json was produced from a different packet; rerun npm run audit');
   const seeded = new Set((db.prepare(`SELECT json_extract(payload, '$.id') id FROM events WHERE type = 'finding_opened' AND json_extract(payload, '$.packet') = ?`).all(PACKET_SHA) as any[]).map(r => r.id));
   let n = 0;
   for (const x of f.findings) {
     if (x.severity === 'info' || seeded.has(x.id)) continue;
-    append('audit', 'finding_opened', [...x.lines, ...x.refs], { ...x, packet: PACKET_SHA });
+    append('audit', 'finding_opened', [...x.lines, ...x.refs], { ...x, packet: PACKET_SHA }, at);
     n++;
   }
   if (n) console.log(`seeded ${n} open items from findings.json`);
 }
+seedFindings();
 const FINDINGS = mask(readFileSync(root + 'findings.json', 'utf8'));
 
 const app = new Hono();
@@ -145,9 +148,27 @@ function reveal(ref: string): unknown {
   return mask(s) === s ? undefined : v; // only sensitive things go through this door
 }
 
+// Demo reset (firm administrator only): wipe the event log and attachments, reseed the audit's open items,
+// optionally replay a mid-season scenario. Connected browsers are told to reload.
+app.post('/api/admin/reset', async c => {
+  const a = userOf(c);
+  if (!a || a.role !== 'firm_administrator') return c.json({ error: 'Only the firm administrator can reset the demo.' }, 403);
+  const { scenario } = await c.req.json().catch(() => ({}));
+  if (!['clean', 'midseason'].includes(scenario)) return c.json({ error: 'Choose clean or midseason.' }, 400);
+  db.exec("DELETE FROM events; DELETE FROM sqlite_sequence WHERE name = 'events';");
+  rmSync(ATTACH_DIR, { recursive: true, force: true }); mkdirSync(ATTACH_DIR, { recursive: true });
+  seedFindings(scenario === 'midseason' ? '2026-03-04T09:30:00Z' : undefined); // the audit runs on v1, as the pipeline would
+  if (scenario === 'midseason') seedMidSeason(g, append, allEvents);
+  for (const l of listeners) l('reset');
+  return c.json({ ok: true, events: allEvents().length });
+});
+
 app.get('/api/stream', c => streamSSE(c, async s => {
   const a = userOf(c);
-  const send = (e: StoredEvent) => { if (visibleTo(a, e, people)) s.writeSSE({ data: JSON.stringify(masked(e)), id: String(e.seq) }); };
+  const send = (e: StoredEvent | 'reset') => {
+    if (e === 'reset') return void s.writeSSE({ event: 'reset', data: '' });
+    if (visibleTo(a, e, people)) s.writeSSE({ data: JSON.stringify(masked(e)), id: String(e.seq) });
+  };
   listeners.add(send);
   s.onAbort(() => { listeners.delete(send); });
   await s.writeSSE({ event: 'hello', data: '' }); // flush headers so clients see the stream open

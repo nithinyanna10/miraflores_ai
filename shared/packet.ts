@@ -287,3 +287,21 @@ export function effectOf(P: Packet, l: Line, delta: number): Effect {
     basis: `${d > 0 ? '+' : ''}${d.toLocaleString('en-US')} x v3 ${m.cat} rate${ca !== m.cat ? ` (California: ${ca})` : ''}`,
   };
 }
+
+// ---------- knock-on effects the rate estimate does not capture ----------
+// The engine cannot be rerun, so we do not propagate adjustments into dependent totals.
+// Where a change is known to move a non-linear line, that line is flagged "needs recompute"
+// and someone records how it was handled. Sources: readme ("schc_profit also drives SE tax and QBI";
+// "SEP and SE health insurance also change the QBI deduction, which the adjustment rate does not capture")
+// and the engine's own limits (R-SEP-LIMIT, R-SEHI).
+export type KnockOn = { line: string; why: string };
+export function knockOns(key: string): KnockOn[] {
+  if (/^(SchC\.|F4562-C\.)/.test(key)) return [
+    { line: 'Sch1.16', why: 'The SEP deduction is limited to 20% of net profit less half the SE tax (R-SEP-LIMIT); a Schedule C change moves the limit.' },
+    { line: 'Sch1.17', why: 'The self-employed health insurance deduction is limited by business income less half SE tax and SEP (R-SEHI).' },
+  ];
+  if (/^Sch1\.(16|17)$/.test(key)) return [
+    { line: 'F8995.2.1', why: 'SEP and SE health insurance reduce qualified business income; the adjustment rate does not capture the QBI deduction (readme).' },
+  ];
+  return [];
+}

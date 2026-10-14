@@ -24,14 +24,17 @@ Spend the design boldness here and keep everything else quiet. When you select a
 Left-aligned everywhere. Numbers right-aligned in tabular figures. The right pane is the document, never a modal. Large sets (Form 8949 lots, 260 on D74) collapse to rollups by broker and term, with only exceptions expanded.
 
 ## Tokens
-Color (cool, paper-and-ink, rooted in tax forms; red is the "dropout red" of Copy A forms):
-- Paper  #F6F7F9  page background
-- Sheet  #FFFFFF  panes and the document facsimile
+Color (soft, cool, paper-on-a-desk; only source documents are true white so they read as paper; red is the "dropout red" of Copy A forms):
+- Desk   #E9EDF0  app background, header, outline rail
+- Panel  #F3F5F7  working panes (summary, proof thread)
+- Paper  #FFFFFF  ONLY the document facsimiles and the login card stack
 - Ink    #18202E  text and numbers
-- Rule   #D9DEE6  dividers (1px, used sparingly)
+- Muted  #5B6573  secondary text
+- Rule   #D3D9E0  dividers (1px, used sparingly)
 - Copy A red #C8102E  errors, broken threads, blockers only
 - Verified teal #0E6B5C  verified and signed
 - Pending amber #A86A00  unverified, open questions
+Soft shadow only under document paper (0 1px 2px rgba(24,32,46,.06), 0 8px 24px rgba(24,32,46,.06)). No other shadows. Never use beige or cream.
 Every state also has a shape or icon, never color alone.
 
 Type (Google Fonts):
@@ -53,3 +56,12 @@ Plain, specific, active. Buttons say what happens: "Verify against document", "S
 
 ## Quality bar and process
 Before building each screen, write a 5-line plan in NOTES.md. After building, run the app, take Playwright screenshots (Chromium is installed), look at them, and fix anything that looks generic, cramped or misaligned before telling me it's done. Keyboard focus visible, works at 1280px and degrades sensibly to tablet.
+
+## Sign-in screen (first thing anyone sees)
+No passwords. It is the role switcher, made into a real entry point. Split layout on the Desk background.
+
+Left (about 55%): a small looping animation of what the product does, drawn in SVG, no libraries. One white W-2 page sits on the desk. A field (box 1, 104,600.00) highlights, a thread draws from it to a return line "Wages 212,400" which ticks to Verified in teal. Then a second thread draws from a 1099-B lot whose basis reads 0 and breaks in Copy A red, and a one-line fix fades in: "Supplemental statement gives 19,100". Hold, then loop. About 8 seconds, slow and calm. One line of plain copy under it: "Every number, traced to the page it came from." With prefers-reduced-motion, show the final frame static.
+
+Right (about 45%): firm name, the return ("Okafor-Lindqvist, 2025 joint return, CA to TX"), then the people as a list from firm.staff and firm.client_users. Each row: name, role, credential, one plain line of what they can do here ("Prepares and verifies lines; can't sign off on areas they prepared"), and a quiet badge if they can see unmasked SSNs. Clicking a row signs in as that person. Group staff and client separately. Show the deadline next to the return (extension date from firm.deadlines).
+
+Inside the app, the header shows who you are with a "Switch person" link that returns here. The server still enforces every role.

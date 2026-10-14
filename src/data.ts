@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Graph, SimulatedSource, severityStatus, worse, isLot, type Finding, type Status } from '../shared/packet.ts';
+import { Graph, SimulatedSource, severityStatus, worse, isLot, knockOns, type Finding, type Status } from '../shared/packet.ts';
 import { currentSignoffs, liveAdjustments, type StoredEvent } from '../shared/policy.ts';
 
 export type WEvent = StoredEvent;
@@ -28,6 +28,7 @@ export function useEvents(user: string) {
       src = new EventSource(`/api/stream?user=${encodeURIComponent(user)}`);
       src.onopen = () => setLive(true);
       src.onerror = () => setLive(false);
+      src.addEventListener('reset', () => location.reload()); // the demo was reset by the administrator
       src.onmessage = m => {
         const e: WEvent = JSON.parse(m.data);
         if (e.seq > last) { last = e.seq; setEvents(prev => [...prev, e]); }
@@ -78,8 +79,22 @@ function derive(g: Graph, events: WEvent[]) {
   const addressedBy: Record<string, WEvent> = {};
   for (const a of Object.values(adjustments)) if (a.payload.finding) addressedBy[a.payload.finding] = a;
   const value = (k: string) => adjustments[k]?.payload.to ?? L[k]?.value;
-  // An open item is closed by a resolution, or addressed by a live adjustment made for it.
-  const findings = allFindings.filter(f => !resolution[f.id] && !addressedBy[f.id]);
+  // Prior-year variances are closed by an explanation (one reason each; may be given in bulk).
+  const withdrawnExpl = new Set(events.filter(e => e.type === 'variance_explanation_withdrawn').map(e => e.payload.explanation));
+  const explainedBy: Record<string, { e: WEvent; reason: string }> = {};
+  for (const e of events) if (e.type === 'variance_explained' && !withdrawnExpl.has(e.seq)) for (const [id, reason] of Object.entries(e.payload.reasons)) explainedBy[id] = { e, reason: reason as string };
+  // An open item is closed by a resolution, addressed by a live adjustment made for it, or explained.
+  const findings = allFindings.filter(f => !resolution[f.id] && !addressedBy[f.id] && !explainedBy[f.id]);
+  // Knock-on lines the rate estimate cannot capture: open until someone records how they were handled.
+  // One item per affected line, covering every live adjustment that moves it. A recompute recorded after the
+  // latest of those adjustments handles it; a later adjustment opens it again.
+  const recByLine: Record<string, { line: string; why: string; adjustments: WEvent[] }> = {};
+  for (const a of Object.values(adjustments)) for (const k of knockOns(a.refs[0])) (recByLine[k.line] ??= { line: k.line, why: k.why, adjustments: [] }).adjustments.push(a);
+  const recomputes = Object.values(recByLine).map(r => {
+    const latest = Math.max(...r.adjustments.map(a => a.seq));
+    return { ...r, handled: events.filter(e => e.type === 'recompute_recorded' && e.payload.line === r.line && e.seq > latest).at(-1) };
+  });
+  const openRecomputes = recomputes.filter(r => !r.handled);
 
   // Everything a line is built from, transitively.
   const up: Record<string, Set<string>> = {};
@@ -124,6 +139,7 @@ function derive(g: Graph, events: WEvent[]) {
     const s = (byLine[k] ?? []).reduce<Status>((s, f) => worse(s, severityStatus(f.severity) ?? 'Unverified'), 'Unverified');
     if (openNotes.some(n => n.open.refs.includes(k)) || pendingApproval.some(a => a.refs[0] === k)) return 'Blocked';
     if (s !== 'Unverified') return s;
+    if (openRecomputes.some(r => r.line === k)) return 'Question open';
     const v = verification[k];
     if (v) return seenValue(v, k) === value(k) ? 'Verified' : 'Reopened';
     return adjustments[k] ? 'Adjusted' : 'Unverified';
@@ -157,7 +173,7 @@ function derive(g: Graph, events: WEvent[]) {
   for (const q of questions) for (const r of q.q.refs) (questionsByRef[r] ??= []).push(q);
   const source = new SimulatedSource(g);
   return {
-    findings, allFindings, resolution, adjustments, approved, pendingApproval, addressedBy, value, adjustedEffect, byLine, unplaced, own, inherited, affectedBy, upstream, blocking,
+    findings, allFindings, resolution, explainedBy, recomputes, openRecomputes, adjustments, approved, pendingApproval, addressedBy, value, adjustedEffect, byLine, unplaced, own, inherited, affectedBy, upstream, blocking,
     notes, openNotes, notesByLine, verification, verified, signoffs, attachments, attachmentsByRef, questions, questionsByRef, source, lotKeys: Object.keys(L).filter(isLot),
   };
 }

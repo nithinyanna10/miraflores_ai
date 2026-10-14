@@ -322,3 +322,18 @@ button.hop-body:hover { border-color: var(--ink-3); }
 .whatif-effect { font-variant-numeric: tabular-nums; }
 @media (max-width: 1180px) { .views { display: none; } }
 .whatif > .btn { justify-self: start; }
+
+.recompute-note { display: flex; gap: 6px; align-items: baseline; }
+.bulk-bar { margin: 10px 0; }
+.item-list.pickable li { display: grid; grid-template-columns: 22px 1fr; align-items: start; }
+.item-list.pickable li > input { margin-top: 14px; }
+.explain label { color: var(--ink); }
+
+.reset { position: relative; }
+.reset-panel { position: absolute; right: 0; top: 36px; width: 360px; background: var(--sheet); border: 1px solid var(--rule); box-shadow: 0 12px 32px rgba(24,32,46,.14); padding: 14px; display: grid; gap: 6px; z-index: 25; }
+.reset-panel .btn { justify-self: start; margin-top: 6px; }
+.reset-panel .link { justify-self: start; margin: 6px 0 0; }
+
+.hop.is-broken.is-question > .hop-seg { border-left-color: var(--amber); }
+.hop.is-broken.is-question > .hop-marker::before { background: var(--amber); }
+.hop.is-active.is-broken.is-question > .hop-body { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); }
