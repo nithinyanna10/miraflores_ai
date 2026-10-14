@@ -10,6 +10,7 @@ import { Session, SignoffPanel, ExplainVariances, type Form, type Toast } from '
 import { can, type Actor } from '../shared/policy.ts';
 import { ClientApp } from './ClientApp.tsx';
 import { ChangesDrawer, Compare, WhatIfs, readCursor, writeCursor } from './Views.tsx';
+import { SignIn, signInAs } from './SignIn.tsx';
 
 type Sel = { line?: string; src?: string; view?: string; a?: string; b?: string };
 const readHash = (): Sel => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
@@ -19,24 +20,22 @@ const writeHash = (s: Sel) => {
 };
 const toggled = (s: Set<string>, x: string) => { const n = new Set(s); n.has(x) ? n.delete(x) : n.add(x); return n; };
 
-// The role switcher stands in for sign-in (per the brief). Switching user reloads, so every
-// fetch and the live stream are re-scoped by the server to what that user may see.
+// Who you are, and the way back to the sign-in screen. Switching reloads, so every fetch and the
+// live stream are re-scoped by the server to what that person may see.
 export function RoleSwitch({ people, user }: { people: Actor[]; user: string }) {
+  const p = people.find(x => x.id === user);
   return (
-    <label className="role"><span className="sr">Working as</span>
-      <select value={user} aria-label="Working as" onChange={e => { try { localStorage.setItem('user', e.target.value); } catch {} location.reload(); }}>
-        {people.map(p => <option key={p.id} value={p.id}>{p.name}, {p.role.replace(/_/g, ' ')}{p.role !== 'client' && !p.sensitive_data_clearance ? ', no clearance' : ''}</option>)}
-      </select>
-    </label>
+    <span className="me"><span>{p?.name}, {p?.role.replace(/_/g, ' ')}</span><button className="link" onClick={() => signInAs(null)}>Switch person</button></span>
   );
 }
 
 export function App() {
   const [people, setPeople] = useState<Actor[] | null>(null);
-  const user = (() => { try { return localStorage.getItem('user') ?? 'st-02'; } catch { return 'st-02'; } })();
+  const user = (() => { try { return localStorage.getItem('user'); } catch { return null; } })();
   useEffect(() => { fetch('/api/people').then(r => r.json()).then(setPeople); }, []);
   if (!people) return <div className="loading">Loading…</div>;
-  const me = people.find(p => p.id === user) ?? people.find(p => p.id === 'st-02')!;
+  const me = people.find(p => p.id === user);
+  if (!me) return <SignIn people={people} />;
   return me.role === 'client' ? <ClientApp me={me} people={people} /> : <StaffApp user={me.id} people={people} />;
 }
 

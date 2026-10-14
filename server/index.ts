@@ -66,7 +66,18 @@ seedFindings();
 const FINDINGS = mask(readFileSync(root + 'findings.json', 'utf8'));
 
 const app = new Hono();
-app.get('/api/people', c => c.json(people.map(({ id, name, role, sensitive_data_clearance, active_from }) => ({ id, name, role, sensitive_data_clearance, active_from }))));
+app.get('/api/people', c => c.json(people.map(({ id, name, role, sensitive_data_clearance, active_from, credential }: any) => ({ id, name, role, sensitive_data_clearance, active_from, credential }))));
+// What the sign-in screen needs to say about the engagement (nothing sensitive).
+app.get('/api/meta', c => {
+  const [tp, sp] = P.household.people;
+  const states = P.household.residency.map((r: any) => r.state).join(' to ');
+  return c.json({
+    firm: P.firm.name,
+    client: `${tp.name.split(' ').at(-1)}-${sp.name.split(' ').at(-1)}`,
+    return: `${P.household.tax_year} ${P.household.filing_status === 'married_filing_jointly' ? 'joint' : ''} return, ${states}`.replace(/\s+/g, ' '),
+    extended: P.firm.deadlines.find((d: any) => /Extended due date/.test(d.what))?.date,
+  });
+});
 const userOf = (c: any) => actorOf(c.req.header('x-user') ?? c.req.query('user'));
 const staffOnly = (c: any) => { const a = userOf(c); return a && a.role !== 'client' ? null : c.json({ error: a ? 'Clients see their own documents and questions, not the workpaper.' : 'Pick who you are first.' }, 403); };
 app.get('/api/packet', c => staffOnly(c) ?? c.body(MASKED_PACKET, 200, { 'content-type': 'application/json', 'cache-control': 'private, no-store' }));

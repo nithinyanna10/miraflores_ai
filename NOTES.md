@@ -131,3 +131,16 @@ Stack decisions:
   - Two client questions, answered with the packet's own msg-07 and msg-08.
   - One open review note on the SEP excess.
 - **Fly:** `min_machines_running = 1`, auto-stop off, so there is no cold start.
+
+## New palette and sign-in screen (DESIGN.md update)
+- **Palette:** Desk (app, header, outline rail), Panel (working panes, and the cards and inputs inside them), Paper white only for document facsimiles and the sign-in card stack. The one soft shadow is under paper. Muted text is #5B6573. The palette, drawer and reset panel lost their drop shadows; inset items (findings, forms, notes) sit on Desk inside Panel.
+
+### Screen plan: sign-in
+1. Split layout on Desk: an SVG loop on the left (about 55%), the people list on the right (about 45%).
+2. The loop, about 8s, drawn by hand in SVG with CSS keyframes, no libraries:
+   - W-2 box 1 highlights, a thread draws to "Wages 212,400", which ticks to Verified.
+   - A 1099-B lot reads basis 0; its thread breaks in Copy A red, and the fix fades in.
+   - Hold, then loop.
+3. Reduced motion shows the final frame static: both threads drawn, Verified, the break and the fix visible.
+4. Right: firm name, the return ("Okafor-Lindqvist, 2025 joint return, CA to TX") with the extended due date from `firm.deadlines`, then Staff and Client groups on one paper card stack. Each row has name, role, credential, one line of what they can do here, a quiet badge if they see unmasked SSNs, and a note if they have not started yet.
+5. Clicking a row signs in, which is client-side only; the server still enforces every role. In the app, the header shows "Name, role" with a "Switch person" link back here.
