@@ -6,11 +6,12 @@ import { Thread } from './Thread.tsx';
 import { DocPane } from './DocPane.tsx';
 import { Palette } from './Palette.tsx';
 import { StatusMark } from './StatusMark.tsx';
-import { Session, SignoffPanel, type Form } from './Actions.tsx';
+import { Session, SignoffPanel, type Form, type Toast } from './Actions.tsx';
 import { can, type Actor } from '../shared/policy.ts';
 import { ClientApp } from './ClientApp.tsx';
+import { ChangesDrawer, Compare, WhatIfs, readCursor, writeCursor } from './Views.tsx';
 
-type Sel = { line?: string; src?: string };
+type Sel = { line?: string; src?: string; view?: string; a?: string; b?: string };
 const readHash = (): Sel => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
 const writeHash = (s: Sel) => {
   const q = new URLSearchParams(Object.entries(s).filter(([, v]) => v) as [string, string][]).toString();
@@ -47,6 +48,13 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
   const [showWs, setShowWs] = useState<Set<string>>(new Set());
   const [palette, setPalette] = useState(false);
   const [form, setForm] = useState<Form>(null);
+  const [toast, setToast] = useState<Toast>(null);
+  const [drawer, setDrawer] = useState(false);
+  const [cursor, setCursor] = useState<number | null>(null);
+  useEffect(() => { if (cursor == null && w.events.length) setCursor(readCursor(user, w.events.at(-1)!.seq)); }, [w.events.length]);
+  // Changes by other people after this viewer's cursor.
+  const changes = cursor == null ? [] : w.events.filter(e => e.seq > cursor && e.actor !== user && e.actor !== 'audit');
+  const changedLines = new Set(changes.flatMap(e => e.refs));
   useEffect(() => setForm(null), [sel.line]);
   useEffect(() => { const f = () => setSel(readHash()); addEventListener('popstate', f); return () => removeEventListener('popstate', f); }, []);
 
@@ -91,32 +99,41 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
   }, [rows, cursorKey, palette, g, form, sel.line, user]);
 
   if (!g || !w.byLine) return <div className="loading">Loading the 2025 return…</div>;
-  const blockingCount = w.blocking!.length + w.openNotes!.length;
+  const blockingCount = w.blocking!.length + w.openNotes!.length + w.pendingApproval!.length;
 
   return (
-    <Session.Provider value={{ me, people }}>
+    <Session.Provider value={{ me, people, w, toast: setToast }}>
     <div className="app">
       <header className="topbar">
         <button className="client" onClick={() => go({})} title="Back to the return">Okafor-Lindqvist 2025</button>
         <span className="version" title={g.P.return_versions.at(-1).trigger}>Return v3</span>
         <button className="blocking" onClick={() => go({})}><StatusMark status="Blocked" /> {blockingCount} blocking filing</button>
+        <nav className="views" aria-label="Views">
+          <button className={changes.length ? 'has-changes' : ''} onClick={() => setDrawer(!drawer)}>{changes.length ? `${changes.length} new since you looked` : 'Nothing new'}</button>
+          <button aria-current={sel.view === 'compare'} onClick={() => go({ view: 'compare', a: 'v2', b: 'v3' })}>Versions</button>
+          <button aria-current={sel.view === 'whatif'} onClick={() => go({ view: 'whatif' })}>What-ifs</button>
+        </nav>
         <button className="search" onClick={() => setPalette(true)}>Search <kbd>⌘K</kbd></button>
         <RoleSwitch people={people} user={user} />
         <span className={`live${w.live ? ' on' : ''}`} title={w.live ? 'Changes from colleagues appear as they happen' : 'Not connected; changes from others appear on reload'}>{w.live ? 'Live' : 'Offline'}</span>
       </header>
-      <main className={`panes${sel.line || sel.src ? '' : ' is-home'}`}>
+      <main className={`panes${sel.view ? ' is-view' : sel.line || sel.src ? '' : ' is-home'}`}>
         <Outline g={g} w={w} areas={areas} open={openAreas} showWs={showWs}
           toggle={a => setOpenAreas(s => toggled(s, a))} toggleWs={a => setShowWs(s => toggled(s, a))}
-          selected={sel.line} cursorKey={cursorKey} onSelect={k => openLine(k)} />
+          selected={sel.line} cursorKey={cursorKey} onSelect={k => openLine(k)} changed={changedLines} />
         <section className="middle" aria-live="polite">
-          {sel.line && g.line(sel.line)
+          {sel.view === 'compare' ? <Compare g={g} w={w} a={sel.a ?? 'v2'} b={sel.b ?? 'v3'} onPick={(a, b) => go({ view: 'compare', a, b })} onLine={k => openLine(k)} />
+          : sel.view === 'whatif' ? <WhatIfs g={g} w={w} onLine={k => openLine(k)} />
+          : sel.line && g.line(sel.line)
             ? <Thread g={g} w={w} lineKey={sel.line} src={sel.src} onLine={openLine} onSrc={src => go({ ...sel, src })} form={form} setForm={setForm} />
             : <Home g={g} w={w} onFinding={f => openFinding(g, f, openLine, src => go({ src }))} onLine={k => openLine(k)} />}
         </section>
         <DocPane g={g} w={w} refStr={sel.src} onLine={openLine} onSrc={src => go({ ...sel, src })}
           hint={sel.line && !g.line(sel.line)?.sources.length ? 'This line is built only from other lines. Open one of them in the proof thread to follow it to a document.' : undefined} />
       </main>
+      {drawer && <ChangesDrawer g={g} w={w} changes={changes} onLine={k => openLine(k)} onClose={() => setDrawer(false)} onSeen={() => { const s = w.events.at(-1)!.seq; writeCursor(user, s); setCursor(s); setDrawer(false); }} />}
       <Connector deps={[sel.line, sel.src]} />
+      {toast && <div className="toast" role="status"><span>{toast.text}</span>{toast.undo && <button className="btn quiet" onClick={toast.undo}>Undo</button>}<button className="link" onClick={() => setToast(null)} aria-label="Dismiss">Dismiss</button></div>}
       {palette && <Palette g={g} onClose={() => setPalette(false)} onPick={(kind, ref) => {
         setPalette(false);
         if (kind === 'line') openLine(ref);
@@ -155,7 +172,10 @@ function Connector({ deps }: { deps: unknown[] }) {
     const t = setTimeout(update, 120);
     addEventListener('scroll', update, true);
     addEventListener('resize', update);
-    return () => { clearTimeout(t); cancelAnimationFrame(raf); removeEventListener('scroll', update, true); removeEventListener('resize', update); };
+    // Layout also moves when forms open or records appear: follow the content, not just scrolling.
+    const ro = new ResizeObserver(update);
+    document.querySelectorAll('.middle > *, .docpane').forEach(el => ro.observe(el));
+    return () => { clearTimeout(t); cancelAnimationFrame(raf); ro.disconnect(); removeEventListener('scroll', update, true); removeEventListener('resize', update); };
   }, deps);
   if (!d) return null;
   return (
@@ -189,6 +209,10 @@ function Home({ g, w, onFinding, onLine }: { g: Graph; w: Workpaper; onFinding: 
   const [allQ, setAllQ] = useState(false);
   const blockers = [...w.blocking!].sort((a, b) => effectSize(b) - effectSize(a));
   const notes = w.openNotes!;
+  const pending = w.pendingApproval!;
+  const adj = Object.values(w.adjustments!);
+  const E = w.adjustedEffect!;
+  const sgn = (n: number) => (n === 0 ? 'no change' : `${n > 0 ? '+' : '−'}${Math.abs(n).toLocaleString('en-US')}`);
   const questions = w.findings!.filter(f => f.severity === 'judgment' || (f.severity === 'warning' && f.check !== 'prior_year_variance')).sort((a, b) => effectSize(b) - effectSize(a));
   const swings = w.findings!.filter(f => f.check === 'prior_year_variance');
   const item = (f: Finding) => {
@@ -222,14 +246,18 @@ function Home({ g, w, onFinding, onLine }: { g: Graph; w: Workpaper; onFinding: 
   );
   return (
     <article className="home">
+      {adj.length > 0 && (
+        <p className="adjusted-strip"><StatusMark status="Adjusted" /> {adj.length} {adj.length === 1 ? 'adjustment' : 'adjustments'} so far change federal tax by {sgn(E.fedTax)} and California tax by {sgn(E.caTax)}{E.fedBal || E.caBal ? `; payments change the federal balance by ${sgn(E.fedBal)} and California by ${sgn(E.caBal)}` : ''}. First-order estimate at v3 rates; the engine would recompute.</p>
+      )}
       <section className="ledger-pair">
         {ledger('Federal', '2024', fed)}
         {ledger('California', '2024 (Form 540)', ca)}
       </section>
       <section className="items">
-        <h2><StatusMark status="Blocked" size={14} /> {blockers.length + notes.length} items block filing</h2>
+        <h2><StatusMark status="Blocked" size={14} /> {blockers.length + notes.length + pending.length} items block filing</h2>
         <p className="muted">Largest tax effect first. Effect is federal / California, change times the v3 rate.</p>
         <ul className="item-list">
+          {pending.map(a => <li key={a.seq}><button onClick={() => onLine(a.refs[0])}><StatusMark status="Blocked" /><span className="item-title">Partner approval needed: {L[a.refs[0]] ? label(L[a.refs[0]]) : a.refs[0]} adjusted from {fmt(a.payload.from)} to {fmt(a.payload.to)}<span className="item-where">{a.payload.reason}</span></span><span className="item-effect num">{fmt(a.payload.effect.federal)} / {fmt(a.payload.effect.california)}</span></button></li>)}
           {notes.map(n => <li key={n.open.seq}><button onClick={() => onLine(n.open.refs[0])}><StatusMark status="Blocked" /><span className="item-title"><span className="memo">{n.open.payload.text}</span><span className="item-where">Review note on {L[n.open.refs[0]] ? label(L[n.open.refs[0]]) : n.open.refs[0]}</span></span><span /></button></li>)}
           {(allBlock ? blockers : blockers.slice(0, 5)).map(item)}
         </ul>

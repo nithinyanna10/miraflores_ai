@@ -112,7 +112,7 @@ ok(!body.includes('coinhaven-basis-workpaper.txt'), 'client does not see staff f
 const api = await p.evaluate(async () => ({
   packet: (await fetch('/api/packet', { headers: { 'x-user': 'cu-01' } })).status,
   findings: (await fetch('/api/findings', { headers: { 'x-user': 'cu-01' } })).status,
-  types: [...new Set((await (await fetch('/api/events', { headers: { 'x-user': 'cu-01' } })).json()).map((e: any) => e.type))],
+  types: [...new Set<string>((await (await fetch('/api/events', { headers: { 'x-user': 'cu-01' } })).json()).map((e: any) => e.type))],
 }));
 ok(api.packet === 403 && api.findings === 403, 'server refuses the workpaper and findings to a client');
 ok(api.types.every((t: string) => ['client_question', 'client_answer', 'evidence_attached', 'sensitive_viewed'].includes(t)), `client receives only client events (${api.types.join(', ')})`);

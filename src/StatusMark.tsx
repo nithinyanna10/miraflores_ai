@@ -12,6 +12,9 @@ export function StatusMark({ status, inherited = false, size = 12 }: { status: S
     case 'Question open': // diamond
       shape = <path d={`M${c} 1 L${s - 1} ${c} L${c} ${s - 1} L1 ${c} Z`} />;
       break;
+    case 'Adjusted': // filled circle with a bar: the value was changed by a person
+      shape = <><circle cx={c} cy={c} r={c - 1} /><path d={`M${s * 0.3} ${c} L${s * 0.7} ${c}`} className="mark-glyph" /></>;
+      break;
     case 'Verified': case 'Signed':
       shape = <><circle cx={c} cy={c} r={c - 1} /><path d={`M${s * 0.28} ${s * 0.52} L${s * 0.45} ${s * 0.68} L${s * 0.72} ${s * 0.34}`} className="mark-glyph" /></>;
       break;

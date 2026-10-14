@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Graph, SimulatedSource, severityStatus, worse, isLot, type Finding, type Status } from '../shared/packet.ts';
-import { currentSignoffs, type StoredEvent } from '../shared/policy.ts';
+import { currentSignoffs, liveAdjustments, type StoredEvent } from '../shared/policy.ts';
 
 export type WEvent = StoredEvent;
 
@@ -71,7 +71,15 @@ function derive(g: Graph, events: WEvent[]) {
     if (e.type === 'finding_reopened') resolution[e.payload.id] = undefined;
   }
   const allFindings: Finding[] = events.filter(e => e.type === 'finding_opened').map(e => e.payload);
-  const findings = allFindings.filter(f => !resolution[f.id]);
+  // Adjustments: the packet value stays; the latest live adjustment is the current value.
+  const adjustments = liveAdjustments(events);
+  const approved = new Set(events.filter(e => e.type === 'adjustment_approved').map(e => e.payload.adjustment));
+  const pendingApproval = Object.values(adjustments).filter(a => a.payload.needs_partner && !approved.has(a.seq));
+  const addressedBy: Record<string, WEvent> = {};
+  for (const a of Object.values(adjustments)) if (a.payload.finding) addressedBy[a.payload.finding] = a;
+  const value = (k: string) => adjustments[k]?.payload.to ?? L[k]?.value;
+  // An open item is closed by a resolution, or addressed by a live adjustment made for it.
+  const findings = allFindings.filter(f => !resolution[f.id] && !addressedBy[f.id]);
 
   // Everything a line is built from, transitively.
   const up: Record<string, Set<string>> = {};
@@ -106,16 +114,19 @@ function derive(g: Graph, events: WEvent[]) {
   const verification: Record<string, WEvent | undefined> = {};
   for (const e of events) {
     if (e.type === 'verified') e.refs.forEach(r => (verification[r] = e));
+    // Undo of a bulk action withdraws exactly what that action did.
     if (e.type === 'verification_withdrawn') e.refs.forEach(r => (verification[r] = undefined));
   }
-  const verified = new Set(Object.keys(verification).filter(k => verification[k] && verification[k]!.payload.value === L[k]?.value));
+  const seenValue = (e: WEvent, k: string) => e.payload.values?.[k] ?? e.payload.value; // bulk events record one value per line
+  const verified = new Set(Object.keys(verification).filter(k => verification[k] && seenValue(verification[k]!, k) === value(k)));
 
   const own = (k: string): Status => {
     const s = (byLine[k] ?? []).reduce<Status>((s, f) => worse(s, severityStatus(f.severity) ?? 'Unverified'), 'Unverified');
-    if (openNotes.some(n => n.open.refs.includes(k))) return 'Blocked';
+    if (openNotes.some(n => n.open.refs.includes(k)) || pendingApproval.some(a => a.refs[0] === k)) return 'Blocked';
     if (s !== 'Unverified') return s;
     const v = verification[k];
-    return v ? (v.payload.value === L[k]?.value ? 'Verified' : 'Reopened') : 'Unverified';
+    if (v) return seenValue(v, k) === value(k) ? 'Verified' : 'Reopened';
+    return adjustments[k] ? 'Adjusted' : 'Unverified';
   };
   // Status inherited from inputs: a total is only as good as what it is built from.
   const memo: Record<string, Status> = {};
@@ -131,6 +142,13 @@ function derive(g: Graph, events: WEvent[]) {
   const affMemo: Record<string, number> = {};
   const affectedBy = (k: string) => (affMemo[k] ??= new Set([...upstream(k)].flatMap(u => (byLine[u] ?? []).filter(f => f.check !== 'prior_year_variance').map(f => f.id))).size);
   const signoffs = currentSignoffs(events, g);
+  // The return as adjusted: first-order, from each live adjustment's server-computed effect.
+  const adjustedEffect = Object.values(adjustments).reduce((t, a) => {
+    const e = a.payload.effect;
+    if (e.kind === 'tax') { t.fedTax += e.federal; t.caTax += e.california; }
+    if (e.kind === 'balance_due') { t.fedBal += e.federal; t.caBal += e.california; }
+    return t;
+  }, { fedTax: 0, caTax: 0, fedBal: 0, caBal: 0 });
   const attachments = events.filter(e => e.type === 'evidence_attached');
   const attachmentsByRef: Record<string, WEvent[]> = {};
   for (const a of attachments) for (const r of a.refs) (attachmentsByRef[r] ??= []).push(a);
@@ -139,7 +157,7 @@ function derive(g: Graph, events: WEvent[]) {
   for (const q of questions) for (const r of q.q.refs) (questionsByRef[r] ??= []).push(q);
   const source = new SimulatedSource(g);
   return {
-    findings, allFindings, resolution, byLine, unplaced, own, inherited, affectedBy, upstream, blocking,
+    findings, allFindings, resolution, adjustments, approved, pendingApproval, addressedBy, value, adjustedEffect, byLine, unplaced, own, inherited, affectedBy, upstream, blocking,
     notes, openNotes, notesByLine, verification, verified, signoffs, attachments, attachmentsByRef, questions, questionsByRef, source, lotKeys: Object.keys(L).filter(isLot),
   };
 }

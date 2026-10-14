@@ -1,10 +1,25 @@
-import { createContext, useContext, useState } from 'react';
-import { can, LEVELS, scopeHash, scopeName, type Actor } from '../shared/policy.ts';
-import { fmt, type Finding, type Graph } from '../shared/packet.ts';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { can, LEVELS, scopeHash, scopeName, NEEDS_PARTNER_OVER, type Actor } from '../shared/policy.ts';
+import { fmt, effectOf, type Finding, type Graph } from '../shared/packet.ts';
 import { StatusMark } from './StatusMark.tsx';
 import { post, attach, type Workpaper, type ReviewNote, type Question } from './data.ts';
 
-export const Session = createContext<{ me?: Actor; people: Actor[] }>({ people: [] });
+export const Session = createContext<{ me?: Actor; people: Actor[]; w?: Workpaper; toast?: (t: Toast) => void }>({ people: [] });
+export type Toast = { text: string; undo?: () => Promise<void> } | null;
+
+// Bulk actions are one event covering many lines; undo is one compensating event.
+export function useBulk() {
+  const { me, w, toast } = useContext(Session);
+  const bulkVerify = async (keys: string[], what: string) => {
+    if (!me || !w) return;
+    const values = Object.fromEntries(keys.map(k => [k, w.value!(k)]));
+    const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': me.id }, body: JSON.stringify({ type: 'verified', refs: keys, payload: { method: 'agreed_to_source_document', values, bulk: true } }) });
+    const ev = await r.json();
+    if (!r.ok) return toast?.({ text: ev.error });
+    toast?.({ text: `Verified ${what} against the broker statement.`, undo: async () => { await post(me.id, 'verification_withdrawn', keys, { undo: ev.seq }); toast?.({ text: `Undone: ${keys.length} verifications withdrawn.` }); } });
+  };
+  return { bulkVerify };
+}
 export const useSession = () => useContext(Session);
 const nameOf = (people: Actor[], id: string) => people.find(p => p.id === id)?.name ?? id;
 const when = (at: string) => new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -32,8 +47,11 @@ function useAct() {
 }
 
 // ---------- line actions: verify, note, review note ----------
-export type Form = null | 'verify' | 'note' | 'review' | 'attach' | 'ask';
-export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Workpaper; lineKey: string; form: Form; setForm: (f: Form) => void }) {
+export type Form = null | 'verify' | 'note' | 'review' | 'attach' | 'ask' | 'adjust';
+export type Prefill = { to?: number; reason?: string; finding?: string };
+const signed = (n: number) => (n === 0 ? 'no change' : `${n > 0 ? '+' : '−'}${Math.abs(n).toLocaleString('en-US')}`);
+export const effectLine = (e: { federal: number; california: number; kind: string }) => e.kind === 'none' ? 'Tax effect needs an engine recompute' : `${e.kind === 'balance_due' ? 'Balance due' : 'Tax'}: federal ${signed(e.federal)}, California ${signed(e.california)}`;
+export function LineActions({ g, w, lineKey, form, setForm, prefill }: { g: Graph; w: Workpaper; lineKey: string; form: Form; setForm: (f: Form) => void; prefill?: Prefill }) {
   const { me, act, error, busy } = useAct();
   const { people } = useSession();
   const [method, setMethod] = useState('agreed_to_source_document');
@@ -42,8 +60,29 @@ export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Wor
   const v = w.verification![lineKey];
   const submit = async (type: string, payload: any) => { if (await act(type, [lineKey], payload)) { setForm(null); setText(''); } };
   const label = (l.label.length > 40 ? 'this line' : l.label);
+  const cur = w.value!(lineKey);
+  const adj = w.adjustments![lineKey];
+  const [to, setTo] = useState('');
+  const [authority, setAuthority] = useState('');
+  const [revReason, setRevReason] = useState<string | null>(null);
+  useEffect(() => { if (form === 'adjust') { setTo(prefill?.to != null ? String(prefill.to) : ''); setText(prefill?.reason ?? ''); } }, [form, prefill]);
+  const toNum = Number(to.replace(/[,\s]/g, '').replace(/^\((.*)\)$/, '-$1'));
+  const est = to.trim() && Number.isFinite(toNum) ? effectOf(g.P, l, toNum - cur) : null;
   return (
     <div className="line-actions">
+      {adj && (
+        <div className="adjustment">
+          <p><StatusMark status={w.pendingApproval!.includes(adj) ? 'Blocked' : 'Adjusted'} /> <strong>Adjusted</strong> from {fmt(adj.payload.from)} to {fmt(adj.payload.to)} by {nameOf(people, adj.actor)} on {when(adj.at)}.</p>
+          <p className="memo">{adj.payload.reason}{adj.payload.authority ? ` Authority: ${adj.payload.authority}.` : ''}</p>
+          <p className="muted" title={adj.payload.effect.basis}>{effectLine(adj.payload.effect)}. {adj.payload.needs_partner ? (w.approved!.has(adj.seq) ? `Approved by ${nameOf(people, w.events.find(e => e.type === 'adjustment_approved' && e.payload.adjustment === adj.seq)!.actor)}.` : `Over ${NEEDS_PARTNER_OVER.toLocaleString('en-US')}: needs partner approval before filing.`) : ''}</p>
+          <div className="action-row">
+            {adj.payload.needs_partner && !w.approved!.has(adj.seq) && can(me, 'adjustment_approved') && me!.id !== adj.actor && <button className="btn" disabled={busy} onClick={() => act('adjustment_approved', [lineKey], { adjustment: adj.seq })}>Approve the adjustment</button>}
+            {can(me, 'adjustment_reversed') && (revReason == null
+              ? <button className="link" onClick={() => setRevReason('')}>Reverse it</button>
+              : <><input aria-label="Why reverse it" placeholder="Why reverse it?" value={revReason} onChange={e => setRevReason(e.target.value)} autoFocus /><button className="btn quiet" disabled={busy || !revReason.trim()} onClick={async () => { if (await act('adjustment_reversed', [lineKey], { adjustment: adj.seq, reason: revReason.trim() })) setRevReason(null); }}>Reverse to {fmt(adj.payload.from)}</button></>)}
+          </div>
+        </div>
+      )}
       {v && (
         <p className="verification">
           <StatusMark status={v.payload.value === l.value ? 'Verified' : 'Reopened'} />{' '}
@@ -54,6 +93,7 @@ export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Wor
       )}
       <div className="action-row">
         {can(me, 'verified') && !(v && v.payload.value === l.value) && <button className="btn" onClick={() => setForm(form === 'verify' ? null : 'verify')} aria-expanded={form === 'verify'}>Verify {label}<kbd>v</kbd></button>}
+        {can(me, 'adjusted') && typeof l.value === 'number' && <button className="btn quiet" onClick={() => setForm(form === 'adjust' ? null : 'adjust')} aria-expanded={form === 'adjust'}>Adjust {label}</button>}
         {can(me, 'note') && <button className="btn quiet" onClick={() => setForm(form === 'note' ? null : 'note')} aria-expanded={form === 'note'}>Add a note<kbd>n</kbd></button>}
         {can(me, 'review_note_opened') && <button className="btn quiet" onClick={() => setForm(form === 'review' ? null : 'review')} aria-expanded={form === 'review'}>Write a review note</button>}
         {can(me, 'note') && <button className="btn quiet" onClick={() => setForm(form === 'attach' ? null : 'attach')} aria-expanded={form === 'attach'}>Attach a file</button>}
@@ -73,6 +113,17 @@ export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Wor
         </form>
       )}
       {form === 'attach' && <AttachForm refs={[lineKey]} onDone={() => setForm(null)} staff />}
+      {form === 'adjust' && (
+        <form className="action-form" onSubmit={e => { e.preventDefault(); submit('adjusted', { from: cur, to: toNum, reason: text.trim(), authority: authority.trim() || undefined, finding: prefill?.finding }); }}>
+          <label>Corrected amount (now {fmt(cur)}{adj ? `, ${fmt(l.value)} in the engine's return` : ''})<input inputMode="decimal" value={to} onChange={e => setTo(e.target.value)} autoFocus /></label>
+          <label>Why. The reviewer and an examiner will read this.<textarea value={text} onChange={e => setText(e.target.value)} rows={3} /></label>
+          <label>Authority relied on (code section, regulation, ruling; required for judgment calls)<input value={authority} onChange={e => setAuthority(e.target.value)} /></label>
+          {est && <p className={est.kind === 'none' ? 'muted' : ''} title={est.basis}>{effectLine(est)}{Math.abs(est.federal) > NEEDS_PARTNER_OVER || Math.abs(est.california) > NEEDS_PARTNER_OVER ? '. Over 1,000, so the partner must approve it.' : '.'}</p>}
+          <div className="action-row"><button className="btn" disabled={busy || !est || !text.trim()}>Record the adjustment</button><button type="button" className="btn quiet" onClick={() => setForm(null)}>Cancel</button></div>
+          {prefill?.finding && <p className="muted">Recording this addresses {prefill.finding}.</p>}
+          {error && <p className="warn">{error}</p>}
+        </form>
+      )}
       {form === 'ask' && (
         <form className="action-form" onSubmit={e => { e.preventDefault(); submit('client_question', { text: text.trim(), about: l.label }); }}>
           <label>Question for the client. They see only this text, not the workpaper.<textarea value={text} onChange={e => setText(e.target.value)} rows={3} autoFocus /></label>

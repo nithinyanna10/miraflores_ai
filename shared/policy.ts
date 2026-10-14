@@ -23,6 +23,10 @@ export const ALLOWED: Record<string, string[]> = {
   review_note_cleared: REVIEWERS,
   signed_off: WORKERS,
   signoff_withdrawn: WORKERS,
+  adjusted: WORKERS,
+  election_recorded: WORKERS,
+  adjustment_reversed: WORKERS,
+  adjustment_approved: ['partner'],
   finding_resolved: ['reviewer', 'partner'],
   finding_reopened: ['reviewer', 'partner'],
 };
@@ -31,7 +35,7 @@ export const ALLOWED: Record<string, string[]> = {
 export const VERB: Record<string, string> = {
   verified: 'verify a number', verification_withdrawn: 'withdraw a verification', note: 'add a note',
   review_note_opened: 'write a review note', review_note_replied: 'reply to a review note', review_note_cleared: 'clear a review note',
-  signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
+  adjusted: 'adjust a line', election_recorded: 'record an election', adjustment_reversed: 'reverse an adjustment', adjustment_approved: 'approve an adjustment', signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
 };
 export const can = (a: Actor | undefined, type: string) => !!a && isActive(a) && (ALLOWED[type] ?? []).includes(a.role);
 
@@ -52,6 +56,29 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
     return 'Write the note first.';
 
   if (e.type === 'client_question' && !String(e.payload?.text ?? '').trim()) return 'Write the question first.';
+  // Firm rule: every judgment call records the authority relied on.
+  if (e.type === 'election_recorded' && (!String(e.payload?.reason ?? '').trim() || !String(e.payload?.authority ?? '').trim() || !['adopt', 'reject'].includes(e.payload?.decision)))
+    return 'Record the decision, the reason and the authority relied on.';
+  if (e.type === 'adjusted') {
+    const l = g.lines.v3[e.refs[0]];
+    if (!l || typeof l.value !== 'number') return 'Only numeric return lines can be adjusted.';
+    if (typeof e.payload?.to !== 'number' || !Number.isFinite(e.payload.to)) return 'Enter the corrected amount.';
+    if (!String(e.payload?.reason ?? '').trim()) return 'Say why. The reason stays with the adjustment for the reviewer and the examiner.';
+    const cur = currentValue(g, log, l.key);
+    if (e.payload?.from !== cur) return `The line is now ${cur}, not ${e.payload?.from}. Reload and look again.`;
+    if (e.payload.to === cur) return 'That is the current amount.';
+  }
+  if (e.type === 'adjustment_reversed' || e.type === 'adjustment_approved') {
+    const adj = log.find(x => x.type === 'adjusted' && x.seq === e.payload?.adjustment);
+    if (!adj) return 'That adjustment does not exist.';
+    if (log.some(x => x.type === 'adjustment_reversed' && x.payload?.adjustment === adj.seq)) return 'That adjustment was already reversed.';
+    if (e.type === 'adjustment_reversed' && !String(e.payload?.reason ?? '').trim()) return 'Say why it is being reversed.';
+    if (e.type === 'adjustment_approved') {
+      if (!adj.payload.needs_partner) return 'That adjustment does not need partner approval.';
+      if (adj.actor === a.id) return 'You made this adjustment, so another partner must approve it.';
+      if (log.some(x => x.type === 'adjustment_approved' && x.payload?.adjustment === adj.seq)) return 'Already approved.';
+    }
+  }
   if (e.type === 'client_answer') {
     const q = log.find(x => x.type === 'client_question' && x.seq === e.payload?.question);
     if (!q) return 'That question does not exist.';
@@ -79,6 +106,18 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
     if (e.payload?.hash !== scopeHash(g, log, e.refs[0])) return 'The work changed while you were signing. Reload and look again.';
   }
   return null;
+}
+
+// ---------- adjustments: the original stays; the latest live adjustment wins ----------
+export const NEEDS_PARTNER_OVER = 1000; // firm rule: adjustments with a tax effect over 1,000 need partner sign-off
+export function liveAdjustments(log: StoredEvent[]): Record<string, StoredEvent> {
+  const reversed = new Set(log.filter(x => x.type === 'adjustment_reversed').map(x => x.payload?.adjustment));
+  const out: Record<string, StoredEvent> = {};
+  for (const x of log) if (x.type === 'adjusted' && !reversed.has(x.seq)) out[x.refs[0]] = x;
+  return out;
+}
+export function currentValue(g: Graph, log: StoredEvent[], key: string): any {
+  return liveAdjustments(log)[key]?.payload.to ?? g.lines.v3[key]?.value;
 }
 
 // ---------- what a client may see ----------
@@ -109,7 +148,7 @@ export function scopeLines(g: Graph, scope: string): string[] {
 export function scopeHash(g: Graph, log: StoredEvent[], scope: string): string {
   const keys = scopeLines(g, scope);
   const set = new Set(keys);
-  const evidence = log.filter(x => ['verified', 'verification_withdrawn', 'finding_resolved', 'finding_reopened', 'adjusted'].includes(x.type) && x.refs.some(r => set.has(r))).map(x => x.seq);
+  const evidence = log.filter(x => ['verified', 'verification_withdrawn', 'finding_resolved', 'finding_reopened', 'adjusted', 'adjustment_reversed', 'adjustment_approved'].includes(x.type) && x.refs.some(r => set.has(r))).map(x => x.seq);
   // Source refs, not source values: the packet is immutable, and masked copies must hash the same.
   const parts = keys.map(k => { const l = g.lines.v3[k]; return [k, l.value, l.sources]; });
   return fnv(JSON.stringify([parts, evidence]));

@@ -94,3 +94,17 @@ Stack decisions:
 - **One Fly machine** with a volume at `/data` (event log + attachments). SQLite means a single writer, so `--ha=false`. The packet and findings ship in the image, read-only.
 - **Node pinned to 22.22.2** (`node:sqlite` is unflagged from 22.13).
 - `node scripts/e2e-phase2.ts <url>` runs the same 23 browser checks against any deployment. It writes test data, so run it on a fresh volume.
+
+## Phase 3 (in progress): changes
+- **Adjustments keep the original.** An `adjusted` event records from, to, reason, the authority relied on, and the open item it addresses.
+  - The server, not the browser, computes the tax effect (`effectOf` in `shared/packet.ts`: change x v3 rate). The category comes from the line, with the right sign for expenses; sales during California residency use `ca_source_income`; payments and credits are 1:1.
+  - A refused stale edit says so: "The line is now X, not Y".
+  - Effect over 1,000 (federal or California) needs a partner's approval (firm rule). Until then it blocks filing. A partner cannot approve their own adjustment.
+  - Reversal is a compensating event with a reason. The original comes back, and so does the open item.
+  - Lines show the engine value struck through next to the current value. Home shows "the return as adjusted" as a first-order total.
+- **"Apply the fix"** on an open item prefills the amount from the audit's fix text (`SchC.1 = 151,300`, `gain 140`, `Remove X`, `Deduct N`). A person still records it, with a reason.
+- **Bulk actions are one event over many refs.** "Verify the 110 sales with no open items against D74" records one `verified` event with each line's value. Undo is one compensating `verification_withdrawn`. Exceptions are never included in a bulk action.
+- **Since I last looked.** A per-viewer cursor (last seen event seq) lives in localStorage; it is a convenience, not a record. The header shows "N new since you looked", the drawer lists who did what on which line, and changed values are underlined in amber in the outline.
+- **Version compare.** Any two engine versions, with the trigger, documents added or superseded, summary deltas, and changed lines grouped by area. Lots collapse behind a toggle.
+- **What-ifs.** The engine's precomputed alternatives, each with its federal and California effect. Choosing one is an `election_recorded` event; the server refuses it without a reason and an authority (firm rule: every judgment call records the authority).
+- **Checks:** `node scripts/e2e-phase3.ts` (17 checks).

@@ -3,15 +3,29 @@ import { breakHop, fmt, formName, isLot, labelMaker, locate, severityStatus, typ
 import { StatusMark } from './StatusMark.tsx';
 import { lotLabel } from './Outline.tsx';
 import type { Workpaper } from './data.ts';
-import { LineActions, ReviewNotes, ResolveFinding, ClientQuestions, METHODS, type Form } from './Actions.tsx';
+import { LineActions, ReviewNotes, ResolveFinding, ClientQuestions, METHODS, useSession, useBulk, type Form, type Prefill } from './Actions.tsx';
+import { can } from '../shared/policy.ts';
 
 type Props = { g: Graph; w: Workpaper; lineKey: string; src?: string; onLine: (k: string, src?: string) => void; onSrc: (ref: string) => void; form: Form; setForm: (f: Form) => void };
 
 const signed = (n: number) => (n === 0 ? 'no change' : `${n > 0 ? '+' : '−'}${Math.abs(n).toLocaleString('en-US')}`);
 
 // Problem, fix, effect: one line each. The reasoning is one click away.
-export function FindingCard({ f }: { f: Finding }) {
+// The amount a finding's fix proposes for this line, if it states one.
+export function proposedValue(f: Finding, l: Line): number | undefined {
+  const fix = f.fix ?? '';
+  const n = (s: string) => Number(s.replace(/,/g, ''));
+  let m = fix.match(new RegExp(`${l.key.replace(/\./g, '\\.')} = (-?[\\d,]+)`));
+  if (m) return n(m[1]);
+  if (new RegExp(`^Remove ${l.key.replace(/\./g, '\\.')}\\b`).test(fix)) return 0;
+  if (/^F8949\./.test(l.key) && (m = fix.match(/gain (-?[\d,]+)/))) return n(m[1]);
+  if ((m = fix.match(/^(?:Deduct|Use [\w ]+:) (-?[\d,]+)/))) return n(m[1]);
+  return undefined;
+}
+
+export function FindingCard({ f, onApply }: { f: Finding; onApply?: (p: Prefill) => void }) {
   const [why, setWhy] = useState(false);
+  const { me } = useSession();
   const st = severityStatus(f.severity)!;
   return (
     <div className={`finding finding-${f.severity}`} role="note">
@@ -20,7 +34,10 @@ export function FindingCard({ f }: { f: Finding }) {
       {f.tax_effect && <p className="finding-line" title={f.tax_effect.basis}><span className="label">{f.tax_effect.kind === 'balance_due' ? 'Balance due' : 'Tax'}</span> federal {signed(f.tax_effect.federal)}, California {signed(f.tax_effect.california)}</p>}
       {f.detail && <button className="why" aria-expanded={why} onClick={e => { e.stopPropagation(); setWhy(!why); }}>{why ? 'Hide the reasoning' : 'Show the reasoning'}</button>}
       {why && <p className="memo why-text">{f.detail} <span className="ref">{f.id}</span></p>}
-      <ResolveFinding f={f} />
+      <div className="action-row finding-actions">
+        {onApply && can(me, 'adjusted') && <button className="btn quiet" onClick={e => { e.stopPropagation(); onApply({ finding: f.id, reason: `${f.title} Fix per ${f.id}: ${f.fix ?? ''}` }); }}>Apply the fix</button>}
+        <ResolveFinding f={f} />
+      </div>
     </div>
   );
 }
@@ -40,6 +57,8 @@ const Stage = ({ children }: { children: React.ReactNode }) => <li className="st
 
 export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Props) {
   const l = g.line(lineKey)!;
+  const [prefill, setPrefill] = useState<Prefill>();
+  const apply = (f: Finding) => (p: Prefill) => { setPrefill({ ...p, to: proposedValue(f, l) }); setForm('adjust'); };
   const label = labelMaker(Object.values(g.lines.v3));
   const fs = w.byLine![lineKey] ?? [];
   const breaks = useMemo(() => {
@@ -67,7 +86,7 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Pro
     <article className="thread" key={lineKey} ref={root}>
       <header className="thread-head">
         <p className="thread-key">{isLot(l.key) ? `Form 8949, box ${l.line.split('.')[0]}, lot ${l.line.split('.')[1]}` : `${formName(l.form)} line ${l.line}`}</p>
-        <h1><span className="num big">{fmt(l.value, isLot(l.key))}</span> <span className="thread-label">{isLot(l.key) ? lotLabel(l) : label(l)}</span></h1>
+        <h1>{w.adjustments![lineKey] && <s className="num was" title="The engine's value">{fmt(l.value, isLot(l.key))}</s>}<span className="num big">{fmt(w.value!(lineKey), isLot(l.key))}</span> <span className="thread-label">{isLot(l.key) ? lotLabel(l) : label(l)}</span></h1>
         {!(w.verification![lineKey] && (own === 'Verified' || own === 'Reopened')) && <p className="thread-status">
           {own !== 'Unverified'
             ? <><StatusMark status={own} /> {own}{breakHops.length > 0 && <>, breaks at {breakHops.map((h, j) => (
@@ -79,7 +98,7 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Pro
         <ReviewNotes notes={w.notesByLine![lineKey] ?? []} />
         <ClientQuestions questions={w.questionsByRef![lineKey] ?? []} onAttachment={onSrc} />
         {breaks.line?.map(f => <FindingCard key={f.id} f={f} />)}
-        <LineActions g={g} w={w} lineKey={lineKey} form={form} setForm={setForm} />
+        <LineActions g={g} w={w} lineKey={lineKey} form={form} setForm={setForm} prefill={prefill} />
       </header>
 
       <ol className="hops" aria-label="Proof thread">
@@ -87,7 +106,7 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Pro
         <Hop id="rule" status={statusAt('rule')} broken={!!breaks.rule}>
           <p className="hop-main"><span>{g.ruleText(l.rule)}</span></p>
           {l.note && <p className="memo">{l.note}</p>}
-          {breaks.rule?.map(f => <FindingCard key={f.id} f={f} />)}
+          {breaks.rule?.map(f => <FindingCard key={f.id} f={f} onApply={apply(f)} />)}
         </Hop>
 
         {l.inputs.length > 0 && <><Stage>Built from {l.inputs.length} {l.inputs.length === 1 ? 'line' : 'lines'}</Stage><InputHops g={g} w={w} l={l} onLine={onLine} label={label} /></>}
@@ -110,7 +129,7 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Pro
               <p className="hop-main"><span>{n.title}</span>{n.value !== undefined && typeof n.value !== 'object' && <span className="num">{fmt(n.value, ev?.value_type === 'money' && !Number.isInteger(n.value))}</span>}</p>
               {problem && <p className="hop-problem">{problem}</p>}
               {!ev && n.text && <p className="memo clamp">{n.text}</p>}
-              {breaks[s]?.map(f => <FindingCard key={f.id} f={f} />)}
+              {breaks[s]?.map(f => <FindingCard key={f.id} f={f} onApply={apply(f)} />)}
             </Hop>
           );
         }))}
@@ -170,6 +189,8 @@ function groupClean(g: Graph, l: Line, breaks: Record<string, Finding[]>): strin
 
 function InputHops({ g, w, l, onLine, label }: { g: Graph; w: Workpaper; l: Line; onLine: (k: string, src?: string) => void; label: (l: Line) => string }) {
   const [open, setOpen] = useState<string | null>(null);
+  const { me } = useSession();
+  const { bulkVerify } = useBulk();
   const one = (k: string) => {
     const x = g.line(k);
     const own = w.own!(k);
@@ -191,14 +212,19 @@ function InputHops({ g, w, l, onLine, label }: { g: Graph; w: Workpaper; l: Line
       {Object.entries(groups).map(([doc, ks]) => {
         const exceptions = ks.filter(k => w.byLine![k]?.length);
         const sum = ks.reduce((a, k) => a + (g.line(k)?.value ?? 0), 0);
-        const st: Status = exceptions.some(k => w.own!(k) === 'Blocked') ? 'Blocked' : exceptions.length ? 'Question open' : 'Unverified';
+        const clean = ks.filter(k => w.own!(k) === 'Unverified');
+        const nVer = ks.filter(k => w.verified!.has(k)).length;
+        const st: Status = exceptions.some(k => w.own!(k) === 'Blocked') ? 'Blocked' : exceptions.length ? 'Question open' : nVer === ks.length ? 'Verified' : 'Unverified';
         return (
           <li key={doc} className="hop-group">
             <ol className="hops">
               <Hop status={st} onClick={() => setOpen(open === doc ? null : doc)} label={`Show sales from ${doc}`}>
                 <p className="hop-main"><span>{g.docs[doc]?.issuer ?? doc}, {ks.length} {ks.length === 1 ? 'sale' : 'sales'}{exceptions.length ? `, ${exceptions.length} with open items` : ''}</span><span className="num">{fmt(sum, true)}</span></p>
-                <p className="hop-meta">{open === doc ? 'Hide the sales' : ks.length === 1 ? 'Show the sale' : `Show all ${ks.length} sales`}</p>
+                <p className="hop-meta">{open === doc ? 'Hide the sales' : ks.length === 1 ? 'Show the sale' : `Show all ${ks.length} sales`}{nVer ? `. ${nVer} verified` : ''}</p>
               </Hop>
+              {can(me, 'verified') && clean.length > 1 && (
+                <li className="hop bulk"><span className="hop-seg" aria-hidden /><button className="btn quiet" onClick={() => bulkVerify(clean, `${clean.length} sales from ${g.docs[doc]?.issuer ?? doc}`)}>Verify the {clean.length} sales with no open items against {doc}</button></li>
+              )}
             </ol>
             <ol className="hops nested">{(open === doc ? ks : exceptions).map(one)}</ol>
           </li>

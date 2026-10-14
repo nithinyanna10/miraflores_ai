@@ -244,3 +244,46 @@ export function labelMaker(lines: Line[]): (l: Line) => string {
   for (const l of lines) count[l.label] = (count[l.label] ?? 0) + 1;
   return l => (count[l.label] > 1 ? `${l.label} (${formName(l.form)} line ${l.line})` : l.label);
 }
+
+// ---------- tax effect of changing a line ----------
+// The engine cannot be rerun. Per the readme, effect = change x v3 tax_effect_rates[category].
+// Each line maps to a rate category and a sign (an expense going up lowers profit), or to a
+// payment/credit (1:1 on balance due or tax), or to nothing we can estimate honestly.
+export type Effect = { federal: number; california: number; kind: 'tax' | 'balance_due' | 'none'; basis: string };
+type Map_ = { cat: string; sign: number; ca?: string } | { pay: 'federal' | 'california' } | { credit: 'federal' | 'california' };
+function effectMap(l: Line): Map_ | null {
+  const k = l.key;
+  const lot = k.match(/^F8949\.([A-Z])\./);
+  if (lot) return { cat: 'DEFJKL'.includes(lot[1]) ? 'ltcg' : 'stcg', sign: 1 };
+  if (/^SchD\.(1b|2|3|6)$/.test(k)) return { cat: 'stcg', sign: 1 };
+  if (/^SchD\.(8b|9|10|11|12|13|14)$/.test(k)) return { cat: 'ltcg', sign: 1 };
+  if (/^SchB\.(1|5)\.\d+$/.test(k)) return { cat: 'interest', sign: 1 };
+  if (/^F1040\.1a$/.test(k)) return { cat: 'wages', sign: 1 };
+  if (/^SchC\.1$/.test(k)) return { cat: 'schc_profit', sign: 1 };
+  if (/^SchC\.(8|9|11|13|15|17|18|22|24a|24b|25|27a\.\d|30)$/.test(k) || /^F4562-C\.(12|14|19a)$/.test(k)) return { cat: 'schc_profit', sign: -1 };
+  if (/^SchE\.3[AB]$/.test(k) || /^SchE\.28[AB]$/.test(k)) return { cat: 'ordinary_income', sign: 1 };
+  if (/^SchE\.(9|11|12|14|16|18|19)[AB]$/.test(k)) return { cat: 'ordinary_income', sign: -1, ca: /A$/.test(k) ? 'ca_source_income' : undefined };
+  if (/^Sch1\.(13|15|16|17)$/.test(k)) return { cat: 'adjustment', sign: 1 };
+  if (/^SchA\.5[ab]$/.test(k)) return { cat: 'salt', sign: 1 };
+  if (/^(SchA\.(8a|8c|11)|F8283\.)/.test(k)) return { cat: 'itemized', sign: 1 };
+  if (/^SchCA540NR\.\d+\.E$/.test(k)) return { cat: 'ca_source_income', sign: 1 };
+  if (/^(F1040\.(25a|26)|Sch3\.(10|11))$/.test(k)) return { pay: 'federal' };
+  if (/^F540NR\.(71|72|73)$/.test(k)) return { pay: 'california' };
+  if (/^(F1040\.19|Sch3\.1)$/.test(k)) return { credit: 'federal' };
+  return null;
+}
+export function effectOf(P: Packet, l: Line, delta: number): Effect {
+  const m = effectMap(l);
+  const R = P.return_versions.find((v: any) => v.version === 'v3').tax_effect_rates;
+  if (!m || typeof l.value !== 'number') return { federal: 0, california: 0, kind: 'none', basis: 'No rate applies to this line; the effect needs an engine recompute.' };
+  if ('pay' in m) return { federal: m.pay === 'federal' ? -delta : 0, california: m.pay === 'california' ? -delta : 0, kind: 'balance_due', basis: 'Payments change the balance due 1:1.' };
+  if ('credit' in m) return { federal: m.credit === 'federal' ? -delta : 0, california: m.credit === 'california' ? -delta : 0, kind: 'tax', basis: 'Credits change tax 1:1.' };
+  // A sale during California residency is fully California-source (readme): use ca_source_income.
+  const sold = l.label.match(/sold (\d{4}-\d{2}-\d{2})/)?.[1];
+  const caRes = P.household.residency.find((r: any) => r.state === 'CA');
+  const d = delta * m.sign, ca = m.ca ?? (sold && caRes && sold >= caRes.from && sold <= caRes.to ? 'ca_source_income' : m.cat);
+  return {
+    federal: Math.round(d * R[m.cat].federal_per_dollar), california: Math.round(d * R[ca].california_per_dollar), kind: 'tax',
+    basis: `${d > 0 ? '+' : ''}${d.toLocaleString('en-US')} x v3 ${m.cat} rate${ca !== m.cat ? ` (California: ${ca})` : ''}`,
+  };
+}

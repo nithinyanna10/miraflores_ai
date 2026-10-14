@@ -37,9 +37,9 @@ export function buildAreas(g: Graph, w: Workpaper): AreaInfo[] {
 export const visibleRows = (areas: AreaInfo[], open: Set<string>, showWs: Set<string>) =>
   areas.flatMap(a => (open.has(a.area) ? [...a.rows, ...(showWs.has(a.area) ? a.worksheet : [])] : []));
 
-type Props = { g: Graph; w: Workpaper; areas: AreaInfo[]; open: Set<string>; showWs: Set<string>; toggle: (a: string) => void; toggleWs: (a: string) => void; selected?: string; cursorKey?: string; onSelect: (k: string) => void };
+type Props = { g: Graph; w: Workpaper; areas: AreaInfo[]; open: Set<string>; showWs: Set<string>; toggle: (a: string) => void; toggleWs: (a: string) => void; selected?: string; cursorKey?: string; onSelect: (k: string) => void; changed?: Set<string> };
 
-export function Outline({ g, w, areas, open, showWs, toggle, toggleWs, selected, cursorKey, onSelect }: Props) {
+export function Outline({ g, w, areas, open, showWs, toggle, toggleWs, selected, cursorKey, onSelect, changed }: Props) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { ref.current?.querySelector('[data-cursor="true"]')?.scrollIntoView({ block: 'nearest' }); }, [cursorKey]);
   const label = labelMaker(Object.values(g.lines.v3));
@@ -51,7 +51,7 @@ export function Outline({ g, w, areas, open, showWs, toggle, toggleWs, selected,
       <button key={r.key} className={`outline-row depth-${r.depth}${selected === r.key ? ' is-selected' : ''}`} data-cursor={cursorKey === r.key} onClick={() => onSelect(r.key)}>
         {own !== 'Unverified' ? <StatusMark status={own} /> : affected ? <span className="affected" title={`Affected by ${affected} open ${affected === 1 ? 'item' : 'items'} upstream`} /> : <StatusMark status="Unverified" />}
         <span className="outline-label">{box ? <>Form 8949 box {box}, {BOX_NAMES[box].toLowerCase()}<span className="muted"> ({l.inputs.length} {l.inputs.length === 1 ? 'sale' : 'sales'})</span></> : r.depth ? lotLabel(l) : label(l)}</span>
-        <span className="num">{fmt(l.value, isLot(l.key))}</span>
+        <span className={`num${w.adjustments![r.key] ? ' adjusted' : ''}${changed?.has(r.key) ? ' changed' : ''}`} title={changed?.has(r.key) ? 'Changed since you last looked' : undefined}>{fmt(w.value!(r.key), isLot(l.key))}</span>
       </button>
     );
   };

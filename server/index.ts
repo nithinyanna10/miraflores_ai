@@ -7,8 +7,8 @@ import { streamSSE } from 'hono/streaming';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { Graph } from '../shared/packet.ts';
-import { refuse, isActive, visibleTo, ATTACH_ROLES, type Actor, type StoredEvent } from '../shared/policy.ts';
+import { Graph, effectOf } from '../shared/packet.ts';
+import { refuse, isActive, visibleTo, ATTACH_ROLES, NEEDS_PARTNER_OVER, type Actor, type StoredEvent } from '../shared/policy.ts';
 import { buildMasker } from './mask.ts';
 
 const root = new URL('../', import.meta.url).pathname;
@@ -112,6 +112,11 @@ app.post('/api/events', async c => {
   if (!body || typeof body.type !== 'string' || !Array.isArray(body.refs)) return c.json({ error: 'Send a type and refs.' }, 400);
   const why = refuse(a, body, allEvents(), g);
   if (why) return c.json({ error: why }, 403);
+  // The server, not the browser, computes an adjustment's tax effect and whether it needs the partner.
+  if (body.type === 'adjusted') {
+    const eff = effectOf(P, g.lines.v3[body.refs[0]], body.payload.to - body.payload.from);
+    body.payload = { ...body.payload, effect: eff, needs_partner: Math.abs(eff.federal) > NEEDS_PARTNER_OVER || Math.abs(eff.california) > NEEDS_PARTNER_OVER };
+  }
   return c.json(masked(append(a!.id, body.type, body.refs, body.payload)), 201);
 });
 
