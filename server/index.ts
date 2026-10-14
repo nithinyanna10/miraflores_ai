@@ -11,6 +11,8 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Graph, effectOf } from '../shared/packet.ts';
 import { refuse, isActive, visibleTo, ATTACH_ROLES, NEEDS_PARTNER_OVER, type Actor, type StoredEvent } from '../shared/policy.ts';
 import { buildMasker } from './mask.ts';
+import { efileState, finalSummary, openAmendment, readiness } from '../shared/filing.ts';
+import { scopeHash } from '../shared/policy.ts';
 import { seedMidSeason } from './scenario.ts';
 import { rmSync } from 'node:fs';
 
@@ -154,7 +156,19 @@ app.post('/api/events', async c => {
     const eff = effectOf(P, g.lines.v3[body.refs[0]], body.payload.to - body.payload.from);
     body.payload = { ...body.payload, effect: eff, needs_partner: Math.abs(eff.federal) > NEEDS_PARTNER_OVER || Math.abs(eff.california) > NEEDS_PARTNER_OVER };
   }
-  return c.json(masked(append(a!.id, body.type, body.refs, body.payload)), 201);
+  // Facts the server records itself, so the browser cannot misstate them.
+  const log = allEvents();
+  if (body.type === 'adjusted' && openAmendment(log)) body.payload.amendment = openAmendment(log)!.seq;
+  if (body.type === 'sent_for_approval') body.payload = { ...body.payload, summary: finalSummary(g, log) };
+  if (body.type === 'efile_transmitted') body.payload = { ...body.payload, unmet: readiness(g, log).filter(s => !s.done).map(s => s.step) };
+  if (body.type === 'efile_response') body.payload = { ...body.payload, record: g.P.tax_agency_records.efile[body.payload.index] };
+  const ev = append(a!.id, body.type, body.refs, body.payload);
+  // Federal acceptance is the moment of filing: freeze the return (event cursor + hash of every line).
+  if (body.type === 'efile_response' && ev.payload.record.jurisdiction === 'federal' && ev.payload.record.status === 'accepted') {
+    const after = allEvents();
+    append('system', 'return_frozen', ['area:Whole return'], { cursor: ev.seq, hash: scopeHash(g, after, 'area:Whole return'), summary: finalSummary(g, after), submission: ev.payload.record.submission_id });
+  }
+  return c.json(masked(ev), 201);
 });
 
 // Unmask one thing. Staff need sensitive-data clearance; clients see their own household's data.

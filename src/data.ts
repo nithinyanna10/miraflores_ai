@@ -44,7 +44,7 @@ export async function reveal(user: string, ref: string): Promise<{ value?: any; 
   return r.json();
 }
 
-export function useWorkpaper(user: string) {
+export function useWorkpaper(user: string, asOf?: string) {
   const [g, setG] = useState<Graph | null>(null);
   const [audit, setAudit] = useState<{ findings: Finding[] } | null>(null);
   const { events, live } = useEvents(user);
@@ -53,8 +53,10 @@ export function useWorkpaper(user: string) {
     fetch('/api/findings', {}).then(r => r.json()).then(setAudit);
   }, [user]);
 
-  const derived = useMemo(() => (g ? derive(g, events) : null), [g, events]);
-  return { g, events, live, audit, ...derived };
+  // Replay: the same derivation over the events up to the end of a chosen day.
+  const shown = useMemo(() => (asOf ? events.filter(e => e.at <= `${asOf}T23:59:59Z`) : events), [events, asOf]);
+  const derived = useMemo(() => (g ? derive(g, shown) : null), [g, shown]);
+  return { g, events: shown, live, audit, ...derived };
 }
 
 export type ReviewNote = { open: WEvent; replies: WEvent[]; cleared?: WEvent };

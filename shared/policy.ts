@@ -189,7 +189,7 @@ export function currentValue(g: Graph, log: StoredEvent[], key: string): any {
 // ---------- what a client may see ----------
 // Clients see questions addressed to them, their own answers and uploads, files staff chose to share,
 // and their own unmasking. Review notes, open items, judgment calls, verifications and sign-offs are internal.
-export const CLIENT_TYPES = new Set(['client_question', 'client_answer', 'client_approved', 'client_signed_8879']);
+export const CLIENT_TYPES = new Set(['client_question', 'client_answer', 'client_signed_8879', 'sent_for_approval', 'return_frozen']);
 export const ATTACH_ROLES = [...STAFF, 'client'];
 export function visibleTo(a: Actor | undefined, e: StoredEvent, people: Actor[]): boolean {
   if (!a) return false;

@@ -33,7 +33,7 @@ export function ClientApp({ me, people }: { me: Actor; people: Actor[] }) {
           </ul>
 
           <h2>Approval and e-signature</h2>
-          <p className="muted">When your return is ready, you will review a summary and sign Forms 8879 and FTB 8879 here. It is not ready yet.</p>
+          <Approval me={me} events={events} />
 
           <h2>Your documents</h2>
           <ul className="client-docs">
@@ -47,6 +47,43 @@ export function ClientApp({ me, people }: { me: Actor; people: Actor[] }) {
           {!open && <p className="muted pane-hint">Select a document or file to see it here.</p>}
         </aside>
       </main>
+    </div>
+  );
+}
+
+// Review the summary the partner sent, then sign Forms 8879 and FTB 8879 with a PIN you choose.
+function Approval({ me, events }: { me: Actor; events: WEvent[] }) {
+  const [pin, setPin] = useState('');
+  const [agree, setAgree] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const sent = events.filter(e => e.type === 'sent_for_approval').at(-1);
+  const filed = events.find(e => e.type === 'return_frozen');
+  const mine = sent && events.find(e => e.type === 'client_signed_8879' && e.actor === me.id && e.seq > sent.seq);
+  const fmtN = (n: number) => Math.abs(n).toLocaleString('en-US');
+  if (filed) return <p className="client-approval"><span><StatusMark status="Signed" /> Your federal return was accepted by the IRS on {filed.at.slice(0, 10)} ({filed.payload.submission}). California follows the federal acceptance.</span></p>;
+  if (!sent) return <p className="muted">When your return is ready, you will review a summary and sign Forms 8879 and FTB 8879 here. It is not ready yet.</p>;
+  const S = sent.payload.summary;
+  return (
+    <div className="client-approval">
+      <table className="ledger compact"><tbody>
+        <tr><th scope="row">Federal tax</th><td className="num">{fmtN(S.federal.total_tax)}</td></tr>
+        <tr><th scope="row">{S.federal.balance_due >= 0 ? 'Federal amount you owe' : 'Federal refund'}</th><td className="num">{fmtN(S.federal.balance_due)}</td></tr>
+        <tr><th scope="row">California tax</th><td className="num">{fmtN(S.california.total_tax)}</td></tr>
+        <tr><th scope="row">{S.california.balance_due >= 0 ? 'California amount you owe' : 'California refund'}</th><td className="num">{fmtN(S.california.balance_due)}</td></tr>
+      </tbody></table>
+      {mine ? <p><StatusMark status="Signed" /> You signed on {mine.at.slice(0, 10)}. We will file once both of you have signed.</p> : (
+        <form className="action-form" onSubmit={async e => {
+          e.preventDefault(); setBusy(true);
+          const err = await post(me.id, 'client_signed_8879', ['area:Whole return'], { pin, agree });
+          setBusy(false); setError(err);
+        }}>
+          <label className="check"><input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} /> I reviewed the return and the amounts above, and I authorize Miraflores to file it electronically.</label>
+          <label>Your 5-digit signature PIN (any five digits you choose)<input inputMode="numeric" maxLength={5} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} /></label>
+          <div className="action-row"><button className="btn" disabled={busy || !agree || pin.length !== 5}>Sign Forms 8879 and FTB 8879</button></div>
+          {error && <p className="warn">{error}</p>}
+        </form>
+      )}
     </div>
   );
 }

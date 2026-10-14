@@ -4,6 +4,7 @@ import type { Graph } from './packet.ts';
 import { currentSignoffs, liveAdjustments, type StoredEvent } from './policy.ts';
 
 export type Step = { step: string; done: boolean; missing?: string; refs?: string[] };
+const n_ = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // Open items the way the workpaper counts them: opened by the audit, not resolved, not addressed by a live
 // adjustment, not explained (variances).
@@ -38,18 +39,18 @@ export function readiness(g: Graph, log: StoredEvent[]): Step[] {
     ({ step: name, done: issues.length === 0, missing: issues.length ? missing(issues.length) : undefined, refs });
   const steps = P.firm.starter_standards.required_steps as string[];
   const map: Record<string, Step> = {
-    'Engagement letter and consents signed': step(steps[0], ['D01', 'D02'].filter(d => !g.docs[d]), n => `${n} document(s) missing`, ['D01', 'D02']),
-    'Identity verified': step(steps[1], openOf(f => f.check === 'client_contradictions' && /SSN/.test(f.title)), n => `${n} identity mismatch(es) open`, ['D04', 'D05', 'D71']),
-    'Prior-year return reviewed': step(steps[2], openOf(f => f.check === 'carryovers' || (f.check === 'client_contradictions' && /Prior preparer/.test(f.title) && f.severity !== 'info')), n => `${n} prior-year item(s) open`, ['D06', 'D07']),
-    'All documents accounted for': step(steps[3], openOf(f => f.check === 'document_landings'), n => `${n} document(s) land nowhere with no reason`),
-    'Prior-year variances explained': step(steps[4], openOf(f => f.check === 'prior_year_variance'), n => `${n} change(s) from 2024 not explained`),
-    'Carryovers agreed to prior year': step(steps[5], openOf(f => f.check === 'carryovers' || f.check === 'basis_rollforward'), n => `${n} carryover or basis item(s) open`),
-    'Estimated payments agreed to IRS and FTB records': step(steps[6], openOf(f => f.check === 'agency_payments' || /estimate/.test(f.title)), n => `${n} payment difference(s) open`, ['agency:/irs_account_transcript_2025', 'agency:/ftb_account']),
+    'Engagement letter and consents signed': step(steps[0], ['D01', 'D02'].filter(d => !g.docs[d]), n => `${n_(n, 'document', 'documents')} missing`, ['D01', 'D02']),
+    'Identity verified': step(steps[1], openOf(f => f.check === 'client_contradictions' && /SSN/.test(f.title)), n => `${n_(n, 'identity mismatch', 'identity mismatches')} open`, ['D04', 'D05', 'D71']),
+    'Prior-year return reviewed': step(steps[2], openOf(f => f.check === 'carryovers' || (f.check === 'client_contradictions' && /Prior preparer/.test(f.title) && f.severity !== 'info')), n => `${n_(n, 'prior-year item', 'prior-year items')} open`, ['D06', 'D07']),
+    'All documents accounted for': step(steps[3], openOf(f => f.check === 'document_landings'), n => `${n_(n, 'document lands', 'documents land')} nowhere with no reason`),
+    'Prior-year variances explained': step(steps[4], openOf(f => f.check === 'prior_year_variance'), n => `${n_(n, 'change', 'changes')} from 2024 not explained`),
+    'Carryovers agreed to prior year': step(steps[5], openOf(f => f.check === 'carryovers' || f.check === 'basis_rollforward'), n => `${n_(n, 'carryover or basis item', 'carryover or basis items')} open`),
+    'Estimated payments agreed to IRS and FTB records': step(steps[6], openOf(f => f.check === 'agency_payments' || /estimate/.test(f.title)), n => `${n_(n, 'payment difference', 'payment differences')} open`, ['agency:/irs_account_transcript_2025', 'agency:/ftb_account']),
     'Due diligence completed': step(steps[7], openOf(f => /8867|due diligence/i.test(f.title)), () => 'Form 8867 not completed'),
-    'Diagnostics resolved': step(steps[8], [...openOf(f => f.severity === 'error'), ...pending, ...notesOpen], n => `${n} blocking item(s): errors, review notes or adjustments awaiting the partner`),
+    'Diagnostics resolved': step(steps[8], [...openOf(f => f.severity === 'error'), ...pending, ...notesOpen], n => `${n_(n, 'blocking item', 'blocking items')}: errors, review notes or adjustments awaiting the partner`),
     'Reviewer sign-off': step(steps[9], so.some(s => s.level === 'reviewer') ? [] : [1], () => 'No current reviewer sign-off on the whole return'),
     'Partner sign-off': step(steps[10], so.some(s => s.level === 'partner') ? [] : [1], () => 'No current partner sign-off on the whole return'),
-    'Client approval and e-file authorization': step(steps[11], clients.filter((c: string) => !signers.has(c)), n => `${n} of ${clients.length} spouse(s) have not signed Form 8879`),
+    'Client approval and e-file authorization': step(steps[11], clients.filter((c: string) => !signers.has(c)), n => `${n} of ${clients.length} ${clients.length === 1 ? 'client has' : 'spouses have'} not signed Form 8879`),
   };
   return steps.map(s => map[s] ?? { step: s, done: false, missing: 'Not tracked' });
 }

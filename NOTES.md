@@ -164,3 +164,24 @@ Stack decisions:
   - Centre: the white card with a made-up firm email (`first.last@miraflores.example`).
   - Right: the people list. Arrow keys move the selection; Enter signs in.
 - **Tests** sign in through `/api/session`, the way a browser does. `scripts/reset.sh <url> clean|midseason` resets as the firm administrator.
+
+### Phase 4 outcome
+- **Readiness is computed, never ticked.** `readiness()` in `shared/filing.ts` maps each of the firm's 12 required steps to the event log: open items by check type, explained variances, current whole-return sign-offs, and both spouses' 8879 signatures. Each unmet step says what is missing.
+- **Approval.** The partner sends the return for approval once the whole-return partner sign-off is current. The server attaches the summary, v3 plus adjustment estimates, labelled as estimates. Each spouse signs Forms 8879 and FTB 8879 with a 5-digit PIN; PINs are masked in every response (last digits only, as with SSNs).
+- **Transmitting** needs the partner's current sign-off and both signatures. Any other unmet step needs a written override, which is stored with the transmission (firms do file with documented exceptions).
+- **Agency responses replay from `tax_agency_records.efile`, in order.** A rejection whose cause the workpaper already fixed is skipped, together with the state return it held: if Theo's SSN item is resolved before the first transmission, the July 13 rejection never happens. That is the point of the audit. To see the rejection path, transmit with the item open (the e2e test does).
+- **Fixing the rejection reopens the whole-return sign-offs at every level.** The fix is new evidence, so preparer, reviewer and partner sign again before retransmitting. The test walks this.
+- **Freeze at filing.** The federal acceptance makes the server append `return_frozen` with the event cursor, a hash of every line and the summary. After that the server refuses every change type (`FROZEN_REFUSES`) until a partner opens an amendment. Adjustments made during an amendment are tagged with it; the filed values stay as filed.
+- **Notice response packet.** One self-contained HTML file for the 2028 Letter 566. For each item under examination it includes:
+  - each affected line, with the filed value, the engine value and the rule;
+  - the source text;
+  - adjustments with reason and authority;
+  - findings and how they were closed;
+  - verifications, correspondence with the client, and attached files (by hash);
+  - the frozen hash.
+
+  No raw SSNs, since it is built from masked data.
+- **Carry-forward** downloads a 2026 opening file and records `carried_forward`. The file holds the carryovers, the assets at year end, the adjustments made, the 2026 planning reference, and the open items, including the prior preparer's unresolved Form 3520.
+- **After filing, costs are estimated, not assessed.** Interest and failure-to-pay come from the frozen balance, the payment date in the timeline and `post_filing_rates`. Labelled as estimates; the transcript shows the actual 196/276 assessment.
+- **Season.** The packet's timeline merged with the workpaper's events. "Replay" sets `asof` in the URL: the same derivation runs over events up to that day, the session's `me` is withheld so every action disappears, and a bar says it is read-only. Replay changes the event state only; return values stay v3 (version switching by date is a ceiling).
+- **Checks:** `node scripts/e2e-phase4.ts` (22 checks: the full season from mid-season to carry-forward and replay).

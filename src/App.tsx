@@ -11,8 +11,9 @@ import { can, type Actor } from '../shared/policy.ts';
 import { ClientApp } from './ClientApp.tsx';
 import { ChangesDrawer, Compare, WhatIfs, readCursor, writeCursor } from './Views.tsx';
 import { SignIn, signOut } from './SignIn.tsx';
+import { FilingView, Season } from './Filing.tsx';
 
-type Sel = { line?: string; src?: string; view?: string; a?: string; b?: string };
+type Sel = { line?: string; src?: string; view?: string; a?: string; b?: string; asof?: string };
 const readHash = (): Sel => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
 const writeHash = (s: Sel) => {
   const q = new URLSearchParams(Object.entries(s).filter(([, v]) => v) as [string, string][]).toString();
@@ -50,8 +51,8 @@ export function App() {
 }
 
 function StaffApp({ user, people }: { user: string; people: Actor[] }) {
-  const w = useWorkpaper(user);
   const [sel, setSel] = useState<Sel>(readHash);
+  const w = useWorkpaper(user, sel.asof);
   const [cursorKey, setCursorKey] = useState<string>();
   const [openAreas, setOpenAreas] = useState<Set<string>>(new Set());
   const [showWs, setShowWs] = useState<Set<string>>(new Set());
@@ -77,7 +78,7 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
     if (!g) return;
     const l = g.line(k);
     const brk = (w.byLine![k] ?? []).map(f => breakHop(l!, f, g)).find(h => h !== 'rule' && h !== 'line');
-    go({ line: k, src: src ?? brk ?? l?.sources.find(s => g.evs[s]) ?? l?.sources[0] });
+    go({ line: k, src: src ?? brk ?? l?.sources.find(s => g.evs[s]) ?? l?.sources[0], asof: sel.asof });
     setCursorKey(k);
   };
   // Keep the selected line's area open, and its worksheet lines if it is one.
@@ -111,22 +112,25 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
   const blockingCount = w.blocking!.length + w.openNotes!.length + w.pendingApproval!.length;
 
   return (
-    <Session.Provider value={{ me, people, w, toast: setToast }}>
+    <Session.Provider value={{ me: sel.asof ? undefined : me, people, w, toast: setToast }}>
     <div className="app">
       <header className="topbar">
         <button className="client" onClick={() => go({})} title="Back to the return">Okafor-Lindqvist 2025</button>
         <span className="version" title={g.P.return_versions.at(-1).trigger}>Return v3</span>
-        <button className="blocking" onClick={() => go({})}><StatusMark status="Blocked" /> {blockingCount} blocking filing</button>
+        <button className="blocking" onClick={() => go({})}><StatusMark status="Blocked" /> {blockingCount} blocking</button>
         <nav className="views" aria-label="Views">
-          <button className={changes.length ? 'has-changes' : ''} onClick={() => setDrawer(!drawer)}>{changes.length ? `${changes.length} new since you looked` : 'Nothing new'}</button>
+          <button className={changes.length ? 'has-changes' : ''} onClick={() => setDrawer(!drawer)}>{changes.length ? `${changes.length} new` : 'Nothing new'}</button>
           <button aria-current={sel.view === 'compare'} onClick={() => go({ view: 'compare', a: 'v2', b: 'v3' })}>Versions</button>
-          <button aria-current={sel.view === 'whatif'} onClick={() => go({ view: 'whatif' })}>What-ifs</button>
+          <button aria-current={sel.view === 'whatif'} onClick={() => go({ view: 'whatif', asof: sel.asof })}>What-ifs</button>
+          <button aria-current={sel.view === 'filing'} onClick={() => go({ view: 'filing', asof: sel.asof })}>Filing</button>
+          <button aria-current={sel.view === 'season'} onClick={() => go({ view: 'season', asof: sel.asof })}>Season</button>
         </nav>
         <button className="search" onClick={() => setPalette(true)}>Search <kbd>⌘K</kbd></button>
         {me?.role === 'firm_administrator' && <ResetDemo user={user} />}
         <RoleSwitch people={people} user={user} />
         <span className={`live${w.live ? ' on' : ''}`} title={w.live ? 'Changes from colleagues appear as they happen' : 'Not connected; changes from others appear on reload'}>{w.live ? 'Live' : 'Offline'}</span>
       </header>
+      {sel.asof && <div className="replay-bar" role="status">Replaying the workpaper as it stood at the end of {new Date(sel.asof + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Read-only. <button className="link" onClick={() => go({ ...sel, asof: undefined })}>Back to now</button></div>}
       <main className={`panes${sel.view ? ' is-view' : sel.line || sel.src ? '' : ' is-home'}`}>
         <Outline g={g} w={w} areas={areas} open={openAreas} showWs={showWs}
           toggle={a => setOpenAreas(s => toggled(s, a))} toggleWs={a => setShowWs(s => toggled(s, a))}
@@ -134,6 +138,8 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
         <section className="middle" aria-live="polite">
           {sel.view === 'compare' ? <Compare g={g} w={w} a={sel.a ?? 'v2'} b={sel.b ?? 'v3'} onPick={(a, b) => go({ view: 'compare', a, b })} onLine={k => openLine(k)} />
           : sel.view === 'whatif' ? <WhatIfs g={g} w={w} onLine={k => openLine(k)} />
+          : sel.view === 'filing' ? <FilingView g={g} w={w} onLine={k => openLine(k)} />
+          : sel.view === 'season' ? <Season g={g} w={w} asOf={sel.asof} onAsOf={d => go({ view: 'season', asof: d })} />
           : sel.line && g.line(sel.line)
             ? <Thread g={g} w={w} lineKey={sel.line} src={sel.src} onLine={openLine} onSrc={src => go({ ...sel, src })} form={form} setForm={setForm} />
             : <Home g={g} w={w} onFinding={f => openFinding(g, f, openLine, src => go({ src }))} onLine={k => openLine(k)} />}
