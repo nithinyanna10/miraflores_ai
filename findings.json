@@ -1,0 +1,2136 @@
+{
+ "generated_by": "scripts/audit.ts",
+ "packet_sha256": "ee01f8508bd2fd9854754b82fd9c4a055bdc55e2778a132002a25381c412ad19",
+ "base_version": "v3",
+ "checks": {
+  "extraction_vs_printed": {
+   "ran": 812,
+   "failed": 5
+  },
+  "low_confidence": {
+   "ran": 2,
+   "failed": 2
+  },
+  "duplicate_documents": {
+   "ran": 80,
+   "failed": 4
+  },
+  "corrected_documents": {
+   "ran": 3,
+   "failed": 3
+  },
+  "recompute_sums": {
+   "ran": 1343,
+   "failed": 1
+  },
+  "version_deltas": {
+   "ran": 304,
+   "failed": 4
+  },
+  "prior_year_variance": {
+   "ran": 93,
+   "failed": 53
+  },
+  "carryovers": {
+   "ran": 12,
+   "failed": 0
+  },
+  "basis_rollforward": {
+   "ran": 12,
+   "failed": 4
+  },
+  "fx_conversion": {
+   "ran": 3,
+   "failed": 1
+  },
+  "document_landings": {
+   "ran": 2798,
+   "failed": 34
+  },
+  "client_contradictions": {
+   "ran": 13,
+   "failed": 13
+  },
+  "agency_payments": {
+   "ran": 4,
+   "failed": 2
+  },
+  "residency": {
+   "ran": 7,
+   "failed": 1
+  },
+  "identity": {
+   "ran": 5,
+   "failed": 0
+  },
+  "independent_recompute": {
+   "ran": 27,
+   "failed": 14
+  }
+ },
+ "counts": {
+  "error": 19,
+  "judgment": 4,
+  "warning": 71,
+  "info": 47
+ },
+ "error_tax_effect_total": {
+  "federal": -13725,
+  "california": -4392
+ },
+ "findings": [
+  {
+   "id": "F-001",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "F8949.B.N1 Corvane Systems Inc (RSU) reported with basis 0; supplemental statement gives 19,100",
+   "detail": "D28 prints basis \"(not reported)\" (noncovered RSU shares); D11 RSU-2502: 400 sh vested 2025-02-15, FMV taxed as wages at vest (in 2025 W-2 box 1; D08 box 14 RSU 38,200). Engine rule R-8949-LOT uses broker basis unless a supplemental statement is matched; it did not match RSU-2502 to N1. Gain overstated by 19,100 (double taxation of wages).",
+   "refs": [
+    "ev-0498",
+    "doc:D11#page2",
+    "doc:D28#page3"
+   ],
+   "lines": [
+    "F8949.B.N1",
+    "SchD.2"
+   ],
+   "amount": -19100,
+   "tax_effect": {
+    "federal": -6647,
+    "california": -1222,
+    "kind": "tax",
+    "basis": "-19,100 x v3 rate stcg (CA: ca_source_income); sold during CA residency"
+   },
+   "fix": "Box B, basis 19,100, code B adjustment; gain 140."
+  },
+  {
+   "id": "F-002",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "F8949.B.N3 Corvane Systems Inc (RSU) reported with basis 0; supplemental statement gives 19,100",
+   "detail": "D28 prints basis \"(not reported)\" (noncovered RSU shares); D11 RSU-2505: 400 sh vested 2025-05-15, FMV taxed as wages at vest (in 2025 W-2 box 1; D08 box 14 RSU 38,200). Engine rule R-8949-LOT uses broker basis unless a supplemental statement is matched; it did not match RSU-2505 to N3. Gain overstated by 19,100 (double taxation of wages).",
+   "refs": [
+    "ev-0516",
+    "doc:D11#page2",
+    "doc:D28#page3"
+   ],
+   "lines": [
+    "F8949.B.N3",
+    "SchD.2"
+   ],
+   "amount": -19100,
+   "tax_effect": {
+    "federal": -6647,
+    "california": -1222,
+    "kind": "tax",
+    "basis": "-19,100 x v3 rate stcg (CA: ca_source_income); sold during CA residency"
+   },
+   "fix": "Box B, basis 19,100, code B adjustment; gain -620."
+  },
+  {
+   "id": "F-003",
+   "severity": "error",
+   "check": "client_contradictions",
+   "title": "California-source wages overstated by 88,831: Halvorsen W-2 box 16 111,300 includes Texas-period wages",
+   "detail": "D09: \"(Employment began 06/02/2025. Employer payroll kept California as the work state through 09/30/2025.)\" qa-45: \"Ngozi's new employer kept withholding California tax until September by mistake.\" Paystub D73: CA taxable wages 22,469 as of 07/15/2025 (work location changed to Austin effective 07/15). Engine rule R-CA-WAGES-SOURCE takes box 16 as California source. California withholding 4,180 stays creditable.",
+   "refs": [
+    "ev-0047",
+    "ev-1081",
+    "D73",
+    "qa-45",
+    "D09"
+   ],
+   "lines": [
+    "SchCA540NR.1.E",
+    "F540NR.32"
+   ],
+   "amount": -88831,
+   "tax_effect": {
+    "federal": 0,
+    "california": -5685,
+    "kind": "tax",
+    "basis": "-88,831 x v3 rate ca_source_income"
+   },
+   "fix": "SchCA540NR.1.E = Corvane 107,100 + Halvorsen CA-period 22,469 (+ any CA-period HSA add-back)."
+  },
+  {
+   "id": "F-004",
+   "severity": "error",
+   "check": "client_contradictions",
+   "title": "SE health insurance deduction 14,400 claimed although Erik was eligible for employer coverage all year",
+   "detail": "qa-25: \"Yes - both of Ngozi's employers offer family coverage, but Erik kept his own individual plan because he likes his doctors.\" IRC 162(l)(2)(B): no deduction for any month the self-employed person is eligible to participate in a subsidized plan of a spouse's employer. 2024 note: \"No self-employed health insurance deduction: Erik was covered on Ngozi's employer plan in 2024.\" The premiums stay nondeductible (itemized medical is below 7.5% of AGI).",
+   "refs": [
+    "qa-25",
+    "ev-0484",
+    "py:/return_2024/notes/Sch1.17"
+   ],
+   "lines": [
+    "Sch1.17",
+    "Sch1.26",
+    "F8995.2.1"
+   ],
+   "amount": -14400,
+   "tax_effect": {
+    "federal": 4464,
+    "california": 605,
+    "kind": "tax",
+    "basis": "-14,400 x v3 rate adjustment; also raises QBI by the same amount (x20% deduction), not captured"
+   },
+   "fix": "Remove Sch1.17."
+  },
+  {
+   "id": "F-005",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "Schedule C gross receipts 163,700 double-count the 12,400 Form 1099-K",
+   "detail": "Books revenue 151,300 (D14). D15 p3: Atlas paid 41,200, of which 12,400 through Paywell, \"deposited gross\" and booked as sales - so the 1099-K is already in books. Reconciliation: 1099-NEC 142,000 (Atlas 41,200 includes the 12,400 paid by card) + clients with no 1099 9,300 = 151,300 vs books 151,300. Third parties reported 154,400 (NEC + K); the 12,400 overlap is the difference. Engine rule R-SCHC-GROSS adds 1099-K amounts it \"could not match to a books deposit\". The 2028 Letter 566 asks for exactly this reconciliation.",
+   "refs": [
+    "ev-0086",
+    "ev-0087",
+    "ev-0127",
+    "ev-0109",
+    "ev-0110",
+    "ev-0111",
+    "doc:D15#page3",
+    "agency:/notices/1"
+   ],
+   "lines": [
+    "SchC.1"
+   ],
+   "amount": -12400,
+   "tax_effect": {
+    "federal": -4402,
+    "california": -384,
+    "kind": "tax",
+    "basis": "-12,400 x v3 rate schc_profit; includes SE tax and QBI"
+   },
+   "fix": "SchC.1 = 151,300."
+  },
+  {
+   "id": "F-006",
+   "severity": "error",
+   "check": "agency_payments",
+   "title": "California estimated payments 14,000 on the return; FTB credits 10,500 to 2025",
+   "detail": "FTB account: 2025-04-15 3,500, 2025-06-16 3,500, 2026-01-15 3,500. 2025-09-15 3,500: Web Pay payment designated tax year 2024; held as a 2024 credit. D68 printed: \"2025-09-15 3,500.00 tax year 2024\". Engine rule R-CA-ESTIMATED-PAYMENTS takes every payment dated 2025-04-01..2026-01-15 regardless of the tax year designated.",
+   "refs": [
+    "ev-1074",
+    "ev-1075",
+    "ev-1076",
+    "agency:/ftb_account",
+    "D68"
+   ],
+   "lines": [
+    "F540NR.72",
+    "F540NR.97"
+   ],
+   "amount": -3500,
+   "tax_effect": {
+    "federal": 0,
+    "california": 3500,
+    "kind": "balance_due",
+    "basis": "payments change refund 1:1"
+   },
+   "fix": "Either claim 10,500 or ask FTB in writing to move the 2024 credit to 2025 before filing; record the decision."
+  },
+  {
+   "id": "F-007",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "F8949.E.N4 Corvane Systems Inc (RSU) reported with basis 0; supplemental statement gives 9,420",
+   "detail": "D28 prints basis \"(not reported)\" (noncovered RSU shares); D11 RSU-2308: 300 sh vested 2023-08-15, FMV taxed as wages at vest (prior-year W-2). Engine rule R-8949-LOT uses broker basis unless a supplemental statement is matched; it did not match RSU-2308 to N4. Gain overstated by 9,420 (double taxation of wages).",
+   "refs": [
+    "ev-0525",
+    "doc:D11#page2",
+    "doc:D28#page3"
+   ],
+   "lines": [
+    "F8949.E.N4",
+    "SchD.9"
+   ],
+   "amount": -9420,
+   "tax_effect": {
+    "federal": -2242,
+    "california": -320,
+    "kind": "tax",
+    "basis": "-9,420 x v3 rate ltcg"
+   },
+   "fix": "Box E, basis 9,420, code B adjustment; gain 5,880."
+  },
+  {
+   "id": "F-008",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "Home property tax 13,420 includes the seller's 6,912 share",
+   "detail": "D54: \"Seller credit for 2025 county taxes 01/01/2025-07/07/2025: 6,912\". The buyer paid the full 2025 bill through escrow (D57/D58) but deducts only the part for days owned (IRC 164(d)): 6,508. SALT drops from 41,290 to 34,378, under the 40,000 cap - so the federal deduction falls 5,622 (the v3 SALT rate of 0 does not apply: threshold crossed). California itemized falls by the full 6,912.",
+   "refs": [
+    "ev-1027",
+    "ev-1036",
+    "ev-1038",
+    "D54"
+   ],
+   "lines": [
+    "SchA.5b",
+    "SchA.5e",
+    "SchCA540NR.A.itemized"
+   ],
+   "amount": -6912,
+   "tax_effect": {
+    "federal": 1462,
+    "california": 332,
+    "kind": "tax",
+    "basis": "federal: capped SALT change -5,622 x itemized rate; CA: -6,912 x salt rate"
+   },
+   "fix": "SchA.5b = 6,508."
+  },
+  {
+   "id": "F-009",
+   "severity": "error",
+   "check": "client_contradictions",
+   "title": "Q4 federal estimate: client said 4,000 on 2026-01-14; IRS transcript shows 3,000 on 2026-01-15",
+   "detail": "D67 (EFTPS) has no Q4 confirmation, so the engine fell back to the questionnaire answer \"Paid January 14, 2026 - 4,000 I think.\". IRS records: 2025-04-15 3,000, 2025-06-16 3,000, 2025-09-15 3,000, 2026-01-15 3,000. F1040.26 and the 2210 penalty both use the wrong amount and date.",
+   "refs": [
+    "qa-41",
+    "D67",
+    "agency:/irs_account_transcript_2025/1"
+   ],
+   "lines": [
+    "F1040.26",
+    "F2210.19",
+    "F1040.38"
+   ],
+   "amount": -1000,
+   "tax_effect": {
+    "federal": 1000,
+    "california": 0,
+    "kind": "balance_due",
+    "basis": "payments change balance due 1:1; penalty slightly higher (later date, smaller payment)"
+   },
+   "fix": "F1040.26 = 12,000; Q4 dated 2026-01-15."
+  },
+  {
+   "id": "F-010",
+   "severity": "error",
+   "check": "duplicate_documents",
+   "title": "D23 page 3 is a second scan of page 2 and both are counted",
+   "detail": "Vehicle mileage log 2025 (scanned, 4 pages): page 3 reads \"(Second scan of the May-Aug sheet - same handwriting and coffee stain as page 2.) Mileage ...\". SchC.44a (11,800) sums totals from both pages. Business miles overstated by 3,700; odometer 41220-58960 = 17,740 total miles.",
+   "refs": [
+    "doc:D23#page2",
+    "doc:D23#page3"
+   ],
+   "lines": [
+    "SchC.44a"
+   ],
+   "amount": -2590,
+   "tax_effect": {
+    "federal": -919,
+    "california": -80,
+    "kind": "tax",
+    "basis": "-2,590 x v3 rate schc_profit; 3700 mi x 0.7; also reduces SE tax"
+   },
+   "fix": "Exclude page 3: business miles 8,100, car expense 5,670."
+  },
+  {
+   "id": "F-011",
+   "severity": "error",
+   "check": "client_contradictions",
+   "title": "Vehicle donation claimed at 6,000 (client's Kelley Blue Book estimate); Form 1098-C shows the charity sold it for 2,900",
+   "detail": "D66 box 4a checked (arm's-length sale), 4c 2,900. IRC 170(f)(12): deduction limited to gross proceeds. The engine sourced qa-39 and the contribution date but not box 4c (ev-1054 lands nowhere). This is one of the two items the IRS examined in 2028 (Letter 566).",
+   "refs": [
+    "qa-39",
+    "call-01",
+    "ev-1054",
+    "D66",
+    "agency:/notices/1"
+   ],
+   "lines": [
+    "F8283.A1.vehicle",
+    "SchA.12"
+   ],
+   "amount": -3100,
+   "tax_effect": {
+    "federal": 806,
+    "california": 149,
+    "kind": "tax",
+    "basis": "-3,100 x v3 rate itemized"
+   },
+   "fix": "Deduct 2,900; attach Copy B of Form 1098-C."
+  },
+  {
+   "id": "F-012",
+   "severity": "error",
+   "check": "duplicate_documents",
+   "title": "Interest of 1,840 counted twice: SchB.1.1 and SchB.1.2 are the same account (ending 7731)",
+   "detail": "D28 (\"Northlake Securities 2025 consolidated Form 1099 (Ngozi Okafor)\") already includes the bank-sweep 1099-INT; D29 is the sweep bank's own copy of that same 1099-INT (\"Form 1099-INT 2025. Payer Northlake Bank, N.A. (bank sweep program for Northlake Securities account ending 7731). Recipi\").",
+   "refs": [
+    "ev-0492",
+    "ev-0538",
+    "D28",
+    "D29"
+   ],
+   "lines": [
+    "SchB.1.1",
+    "SchB.1.2",
+    "SchB.2"
+   ],
+   "amount": -1840,
+   "tax_effect": {
+    "federal": -640,
+    "california": -127,
+    "kind": "tax",
+    "basis": "-1,840 x v3 rate interest"
+   },
+   "fix": "Remove SchB.1.2."
+  },
+  {
+   "id": "F-013",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "Payoff interest 2,150 counted twice in home mortgage interest",
+   "detail": "D55 box 1 13,900 \"(includes prepaid interest at closing and interest paid at payoff 11/20/2025)\"; D56: \"(Interest is reported on the 2025 Form 1098.)\" SchA.8a adds both. Lonestar Mortgage LLC (Form 1098) 13,900.00; Pecan Federal Savings (Form 1098) 997.00; Lonestar Mortgage payoff statement - interest 2,150.00; purchase points 4,800.00.",
+   "refs": [
+    "ev-1032",
+    "ev-1029",
+    "D56",
+    "D55"
+   ],
+   "lines": [
+    "SchA.8a"
+   ],
+   "amount": -2150,
+   "tax_effect": {
+    "federal": 559,
+    "california": 103,
+    "kind": "tax",
+    "basis": "-2,150 x v3 rate itemized"
+   },
+   "fix": "SchA.8a = 19,697."
+  },
+  {
+   "id": "F-014",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "Telephone and internet deducted at 100%; client puts business use at 70% / 50%",
+   "detail": "D15: family mobile plan (4 lines) 2,160, home internet 1,320. call-01: \"Mobile plan covers 4 family lines; Erik estimates his business share is 70%.\" / \"Home internet is shared with the family; business use about 50%.\"",
+   "refs": [
+    "call-01",
+    "doc:D15#page2",
+    "ev-0095"
+   ],
+   "lines": [
+    "SchC.25"
+   ],
+   "amount": -1308,
+   "tax_effect": {
+    "federal": -464,
+    "california": -41,
+    "kind": "tax",
+    "basis": "-1,308 x v3 rate schc_profit"
+   },
+   "fix": "SchC.25 = 2,172."
+  },
+  {
+   "id": "F-015",
+   "severity": "error",
+   "check": "independent_recompute",
+   "title": "Personal Spotify Family 216 in Schedule C software",
+   "detail": "D15 p1 lists Spotify Family inside software and subscriptions 6,850; call-01: \"Spotify Family in software is personal - booked by mistake.\"",
+   "refs": [
+    "ev-0106",
+    "call-01"
+   ],
+   "lines": [
+    "SchC.27a.1"
+   ],
+   "amount": -216,
+   "tax_effect": {
+    "federal": -77,
+    "california": -7,
+    "kind": "tax",
+    "basis": "-216 x v3 rate schc_profit"
+   },
+   "fix": "SchC.27a.1 = 6,634."
+  },
+  {
+   "id": "F-016",
+   "severity": "error",
+   "check": "fx_conversion",
+   "title": "SchB.1.6 converts 2025 income at the 2024_average rate (10.56); 2025 average is 9.86",
+   "detail": "18,450 SEK / 9.86 = 1,871 vs 1,747 on the return. The 2024 return used 10.56 for 2024 interest; the engine reused it.",
+   "refs": [
+    "ev-0960",
+    "ref:fx.SEK.2024_average",
+    "ref:fx.SEK.2025_average"
+   ],
+   "lines": [
+    "SchB.1.6",
+    "SchB.2"
+   ],
+   "amount": 124,
+   "tax_effect": {
+    "federal": 43,
+    "california": 9,
+    "kind": "tax",
+    "basis": "124 x v3 rate interest"
+   },
+   "fix": "Use 2025_average: 1,871."
+  },
+  {
+   "id": "F-017",
+   "severity": "error",
+   "check": "extraction_vs_printed",
+   "title": "D31 lot M18 printed on page 32 was never extracted",
+   "detail": "Ironwood REIT (fractional share cash in lieu) 6.8 sh, acquired 2025-01-14, sold 2025-12-15, proceeds 250, basis 310 (short-term noncovered). Extraction status: partial - Page 32 ('Additional transactions') was not read by the pipeline.",
+   "refs": [
+    "doc:D31#page32"
+   ],
+   "lines": [],
+   "amount": -60,
+   "tax_effect": {
+    "federal": -21,
+    "california": -2,
+    "kind": "tax",
+    "basis": "-60 x v3 rate stcg"
+   },
+   "fix": "Add lot M18 to Form 8949 (box B)."
+  },
+  {
+   "id": "F-018",
+   "severity": "error",
+   "check": "extraction_vs_printed",
+   "title": "F2441.1b provider tax ID 74-3829516 does not match D62 (74-3829156)",
+   "detail": "Digits transposed on extraction (ev-1045, confidence 0.97). A wrong provider TIN on Form 2441 draws an IRS mismatch notice.",
+   "refs": [
+    "ev-1045",
+    "D62"
+   ],
+   "lines": [
+    "F2441.1b"
+   ],
+   "fix": "Use 74-3829156."
+  },
+  {
+   "id": "F-019",
+   "severity": "error",
+   "check": "client_contradictions",
+   "title": "Theo's SSN in the organizer (666-74-xxxx) differs from his 2024 return (666-74-xxxx)",
+   "detail": "Organizer 666-74-3309 vs 2024 Form 1040 666-74-3390 (D06, Delta River Tax Services (Glen Hardesty, EA)) vs Social Security card D71 666-74-3390 (received 2026-07-13, after the rejection). Comparing the organizer to the prior-year return on intake would have caught the transposition before e-file rejection R0000-504-02.",
+   "refs": [
+    "household:theo",
+    "ev-0012",
+    "D71",
+    "agency:/efile/0",
+    "msg-10"
+   ],
+   "lines": [
+    "F8812.4"
+   ],
+   "fix": "Use 666-74-3390."
+  },
+  {
+   "id": "F-020",
+   "severity": "judgment",
+   "check": "independent_recompute",
+   "title": "HVAC replacement 11,000 at 1450 Fremont Way expensed as a repair",
+   "detail": "D47: \"Invoice 5521 dated 08/12/2025. Removed failed 2004 gas furnace and 3-ton AC condenser. Installed new 3-ton heat pump system with air handler, new line set and thermostat....\" call-01: \"HVAC at Fremont Way: the old furnace died in a heat wave; replaced the whole system with a heat pump (new air handler, line set).\" Replacing the whole HVAC system is a restoration of a building system (Treas. Reg. 1.263(a)-3(k)) - capitalize over 27.5 years unless a safe harbor applies (de minimis 2,500 per invoice and small-taxpayer safe harbor do not fit). Engine what_if hvac_improvement gives the effect.",
+   "refs": [
+    "D47",
+    "ev-1001",
+    "qa-37",
+    "call-01",
+    "what_if:hvac_improvement"
+   ],
+   "lines": [
+    "SchE.14A",
+    "F4562-E.total-A"
+   ],
+   "amount": 11000,
+   "tax_effect": {
+    "federal": 3633,
+    "california": 896,
+    "kind": "tax",
+    "basis": "what_if hvac_improvement (engine)"
+   },
+   "fix": "Capitalize as a 27.5-year asset placed in service 2025-08-12; record the authority relied on."
+  },
+  {
+   "id": "F-021",
+   "severity": "judgment",
+   "check": "independent_recompute",
+   "title": "Coinhaven lot C6 reported with zero basis and a 17-day holding period; client says bought March 2021 for 3,050",
+   "detail": "D35 shows \"TRANSFER-IN 2025-06-01 (cost basis unknown)\". msg-07: \"About the crypto lot with no cost: that BTC was bought on another exchange in March 2021 for about 3,050 and moved to Coinhaven in June. That exchange shut down so I only have a bank statement line showing 3,050 to 'CryptoNorth' on 03/15/2021.\" If substantiated, C6 moves from box H (short) to box K (long) with gain 2,275 instead of 5,325. Evidence is a single bank statement line; record what was obtained and the judgment.",
+   "refs": [
+    "ev-0918",
+    "ev-0919",
+    "msg-07"
+   ],
+   "lines": [
+    "F8949.H.C6"
+   ],
+   "tax_effect": {
+    "federal": -1312,
+    "california": -195,
+    "kind": "tax",
+    "basis": "remove ST gain, add LT gain; CA: sold during CA residency, basis reduces CA-source gain"
+   }
+  },
+  {
+   "id": "F-022",
+   "severity": "judgment",
+   "check": "client_contradictions",
+   "title": "SEP contribution 18,000 exceeds the deductible limit 15,214 by 2,786",
+   "detail": "D26 deposited 2026-04-10. Excess contributions to a SEP are includible in Erik's income and subject to the 6% excise (Form 5329) unless withdrawn with earnings by the due date (2026-10-15). Engine carries 2,786 forward with no note. Any Sch C change (mileage, gross receipts, phone) moves this limit.",
+   "refs": [
+    "D26",
+    "qa-26"
+   ],
+   "lines": [
+    "Sch1.16"
+   ],
+   "amount": 2786,
+   "fix": "Advise withdrawal of the excess before 2026-10-15, or document the decision."
+  },
+  {
+   "id": "F-023",
+   "severity": "judgment",
+   "check": "independent_recompute",
+   "title": "St. Brigid gift read as 1,500 at confidence 0.41; receipt prints \"$?,500.00\"",
+   "detail": "D64: \"Handwritten receipt on parish letterhead dated 12/21/2025: 'Received from the Okafor-Lindqvist family, $?,500.00 - thank you.' The first digit is ambiguous (could be read as 1 or 7). No goods or services line. Signed by parish office manager.\" msg-08: \"St. Brigid confirmed by phone the gift was 1,500 - matches our bank statement (check #2207, 12/21/2025).\" A gift of 250 or more needs a contemporaneous written acknowledgment; the acknowledgment is ambiguous, the bank record (check #2207) supports 1,500. Attach the bank record and the client's message as evidence.",
+   "refs": [
+    "ev-1049",
+    "msg-08",
+    "D64"
+   ],
+   "lines": [
+    "SchA.11"
+   ]
+  },
+  {
+   "id": "F-024",
+   "severity": "warning",
+   "check": "extraction_vs_printed",
+   "title": "F2441.1a provider name \"Bright Oak Preschool\" not on D61 (\"Bright Oak Kids Club\")",
+   "detail": "Engine label does not match the provider statement. 2024 return used \"Bright Oak Kids Club, 68-0412257\".",
+   "refs": [
+    "D61",
+    "py:/return_2024/lines/F2441.provider"
+   ],
+   "lines": [
+    "F2441.1a"
+   ],
+   "fix": "Use \"Bright Oak Kids Club\"."
+  },
+  {
+   "id": "F-025",
+   "severity": "warning",
+   "check": "extraction_vs_printed",
+   "title": "D35 C6 date acquired: extracted null does not appear on page 1",
+   "detail": "ev-0918, confidence 0.99, read as \"transfer-in\". Page says: \"CSV export, cost basis by lot (FIFO). Sold lots: C1 BTC 0.0412 acquired 2023-02-11 cost 912.00 sold 2025-01-09 proceeds 3,940.00; C2 ETH 1.25 acquired 2024-11-30 cost 4,680.00 sold 2025-02-14 proceeds 3,412.00; C3 BTC 0.03 acquired 2024-12-15 cost 3,105.00 sol...\" Lands on: F8949.H.C6.",
+   "refs": [
+    "ev-0918",
+    "doc:D35#page1"
+   ],
+   "lines": [
+    "F8949.H.C6"
+   ]
+  },
+  {
+   "id": "F-026",
+   "severity": "warning",
+   "check": "low_confidence",
+   "title": "D35 C6 cost basis read with confidence 0.6",
+   "detail": "Value null (\"\"). Page: \"CSV export, cost basis by lot (FIFO). Sold lots: C1 BTC 0.0412 acquired 2023-02-11 cost 912.00 sold 2025-01-09 proceeds 3,940.00; C2 ETH 1.25 acquired 2024-11-30 cost 4,680.00 sold 2025-02-14 proceeds 3,412.00; C3 BTC 0.03 acquired 2024-12-15 cost 3,105.00 sold 2025-03-03 proceeds 2,610.00; C4 ETH 0.8 acquired 2022-06-20 cost 864.00 sold 2025-04-22 proceeds 1,408.00; C5 SOL 22.0 acquired 2025-01-05 cost 4,290.00 sold 2025-05-30 proceeds 3,520.00; C6 BTC 0.05 acquired TRANSFER-IN 2025-06-01 (cost basis unknown) cost  sold 2025-06-18 proceeds 5,325.00; C7 ETH 2.0 acquired 2023-09-01 cost 3,290.00 sold 2025-07-02 proceeds 5,180.00; C8 BTC 0.015 acquired 2025-03-10 cost 1,236.00 sold 2025-08-21 proceeds 1,740.00; C9 SOL 15.0 acquired 2024-04-02 cost 2,475.00 sold 2025-09-12 proceeds 2,310.00; C10 ETH 0.6 acquired 2025-05-14 cost 1,590.00 sold 2025-10-30 proceeds 2,238.00; C11 BTC 0.02 acquired 2021-11-08 cost 1,310.00 sold 2025-11-19 proceeds 1,860.00; C12 SOL 10.0 acquired 2025-08-01 cost 1,820.00 sold 2025-12-22 proceeds 1,290.00. Lots still held: Buy 1 SOL acquired 2021-06-01 cost 1,858.63; Buy 2 SOL acquired 2025-08-18 cost 528.38; Buy 3 ETH acquired 2021-11-27 cost 1,060.30; Buy 4 ETH acquired 2024-01-03 cost 2,128.60; Buy 5 SOL acquired 2021-02-17 cost 1,140.16; Buy 6 SOL acquired 2023-02-09 cost 451.63; Buy 7 BTC acquired 2023-09-01 cost 2,006.19; Buy 8 BTC acquired 2025-12-15 cost 2,210.94; Buy 9 ETH acquired 2023-05-09 cost 474.27; Buy 10 ETH acquired 2021-12-20 cost 1,858.62; Buy 11 SOL acquired 2023-01-01 cost 1,669.90; Buy 12 BTC acquired 2023-05-22 cost 1,157.55; Buy 13 SOL acquired 2023-09-11 cost 1,521.93; Buy 14 BTC acquired 2022-03-05 cost 1,547.51.\" Lands on F8949.H.C6.",
+   "refs": [
+    "ev-0919"
+   ],
+   "lines": [
+    "F8949.H.C6"
+   ]
+  },
+  {
+   "id": "F-027",
+   "severity": "warning",
+   "check": "low_confidence",
+   "title": "D64 Cash gift amount read with confidence 0.41",
+   "detail": "Value 1500 (\"1,500.00\"). Page: \"Handwritten receipt on parish letterhead dated 12/21/2025: 'Received from the Okafor-Lindqvist family, $?,500.00 - thank you.' The first digit is ambiguous (could be read as 1 or 7). No goods or services line. Signed by parish office manager.\" Lands on SchA.11.",
+   "refs": [
+    "ev-1049"
+   ],
+   "lines": [
+    "SchA.11"
+   ]
+  },
+  {
+   "id": "F-028",
+   "severity": "warning",
+   "check": "corrected_documents",
+   "title": "D31: 18 lots printed, 17 on the return (broker summary proceeds 71,965)",
+   "detail": "Lots printed but not on the return: M18 p32 proceeds 250. The engine's own BROKER_SUMMARY_DETAIL_MISMATCH diagnostic flagged the 250 gap in every version; nothing resolved it.",
+   "refs": [
+    "D31"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-029",
+   "severity": "warning",
+   "check": "recompute_sums",
+   "title": "F1040.26 = 13,000; document sources support 9,000",
+   "detail": "2025 estimated tax payments. Sources: ev-1056 D67 q1_amount 3,000; ev-1058 D67 q2_amount 3,000; ev-1060 D67 q3_amount 3,000. 2025-04-15 3,000.00; 2025-06-16 3,000.00; 2025-09-15 3,000.00; 2026-01-14 4,000.00.",
+   "refs": [
+    "ev-1056",
+    "ev-1057",
+    "ev-1058",
+    "ev-1059",
+    "ev-1060",
+    "ev-1061",
+    "qa-41"
+   ],
+   "lines": [
+    "F1040.26"
+   ]
+  },
+  {
+   "id": "F-030",
+   "severity": "warning",
+   "check": "version_deltas",
+   "title": "v2 lists D69 as used but no line draws on it",
+   "detail": "IRS account transcript, tax period Dec 2025 (pulled by firm)",
+   "refs": [
+    "D69"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-031",
+   "severity": "warning",
+   "check": "version_deltas",
+   "title": "v3 lists D73 as used but no line draws on it",
+   "detail": "Halvorsen Data paystub - pay date 07/18/2025 (Ngozi Okafor)",
+   "refs": [
+    "D73"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-032",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchB.1.6 Interest - Sparbanken Norrland (SEK 3,700 at 10.56): 350 (2024) -> 1,747 (2025), +399%",
+   "detail": "2024 SchB.1.4 (ev-2934). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchB.1.4"
+   ],
+   "lines": [
+    "SchB.1.6"
+   ]
+  },
+  {
+   "id": "F-033",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchB.1.2 Interest - Northlake Bank, N.A.: 0 (2024) -> 1,840 (2025), new",
+   "detail": "No 2024 line for this payer: Interest - Northlake Bank, N.A.. Needs a variance explanation.",
+   "refs": [],
+   "lines": [
+    "SchB.1.2"
+   ]
+  },
+  {
+   "id": "F-034",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.1a Wages: 156,039 (2024) -> 212,400 (2025), +36%",
+   "detail": "2024 F1040.1a (ev-2909). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.1a"
+   ],
+   "lines": [
+    "F1040.1a"
+   ]
+  },
+  {
+   "id": "F-035",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.2b Taxable interest: 2,310 (2024) -> 6,450 (2025), +179%",
+   "detail": "2024 F1040.2b (ev-2910). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.2b"
+   ],
+   "lines": [
+    "F1040.2b"
+   ]
+  },
+  {
+   "id": "F-036",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.7 Capital gain or (loss): -3,000 (2024) -> 185,027 (2025), +6268%",
+   "detail": "2024 F1040.7 (ev-2913). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.7"
+   ],
+   "lines": [
+    "F1040.7"
+   ]
+  },
+  {
+   "id": "F-037",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.9 Total income: 233,489 (2024) -> 480,987 (2025), +106%",
+   "detail": "2024 F1040.9 (ev-2915). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.9"
+   ],
+   "lines": [
+    "F1040.9"
+   ]
+  },
+  {
+   "id": "F-038",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.10 Adjustments to income: 5,080 (2024) -> 35,397 (2025), +597%",
+   "detail": "2024 F1040.10 (ev-2916). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.10"
+   ],
+   "lines": [
+    "F1040.10"
+   ]
+  },
+  {
+   "id": "F-039",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.11 Adjusted gross income: 228,409 (2024) -> 445,590 (2025), +95%",
+   "detail": "2024 F1040.11 (ev-0010). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.11"
+   ],
+   "lines": [
+    "F1040.11"
+   ]
+  },
+  {
+   "id": "F-040",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.12 Standard deduction: 29,200 (2024) -> 85,706 (2025), +194%",
+   "detail": "2024 F1040.12 (ev-2917). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.12"
+   ],
+   "lines": [
+    "F1040.12"
+   ]
+  },
+  {
+   "id": "F-041",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.13 Qualified business income deduction: 16,744 (2024) -> 12,971 (2025), -23%",
+   "detail": "2024 F1040.13 (ev-2918). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.13"
+   ],
+   "lines": [
+    "F1040.13"
+   ]
+  },
+  {
+   "id": "F-042",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.15 Taxable income: 182,465 (2024) -> 346,913 (2025), +90%",
+   "detail": "2024 F1040.15 (ev-2919). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.15"
+   ],
+   "lines": [
+    "F1040.15"
+   ]
+  },
+  {
+   "id": "F-043",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.16 Tax: 29,898 (2024) -> 59,727 (2025), +100%",
+   "detail": "2024 F1040.16 (ev-2920). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.16"
+   ],
+   "lines": [
+    "F1040.16"
+   ]
+  },
+  {
+   "id": "F-044",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.19 Child tax credit / credit for other dependents: 2,500 (2024) -> 400 (2025), -84%",
+   "detail": "2024 F1040.19 (ev-2921). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.19"
+   ],
+   "lines": [
+    "F1040.19"
+   ]
+  },
+  {
+   "id": "F-045",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.23 Other taxes (self-employment tax): 10,159 (2024) -> 19,160 (2025), +89%",
+   "detail": "2024 F1040.23 (ev-2922). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.23"
+   ],
+   "lines": [
+    "F1040.23"
+   ]
+  },
+  {
+   "id": "F-046",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.24 Total tax: 37,557 (2024) -> 81,962 (2025), +118%",
+   "detail": "2024 F1040.24 (ev-0011). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.24"
+   ],
+   "lines": [
+    "F1040.24"
+   ]
+  },
+  {
+   "id": "F-047",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.25a Federal income tax withheld (W-2): 31,950 (2024) -> 25,400 (2025), -21%",
+   "detail": "2024 F1040.25a (ev-2923). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.25a"
+   ],
+   "lines": [
+    "F1040.25a"
+   ]
+  },
+  {
+   "id": "F-048",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.26 2024 estimated tax payments: 6,000 (2024) -> 13,000 (2025), +117%",
+   "detail": "2024 F1040.26 (ev-2924). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.26"
+   ],
+   "lines": [
+    "F1040.26"
+   ]
+  },
+  {
+   "id": "F-049",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F1040.33 Total payments: 37,950 (2024) -> 77,742 (2025), +105%",
+   "detail": "2024 F1040.33 (ev-2925). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F1040.33"
+   ],
+   "lines": [
+    "F1040.33"
+   ]
+  },
+  {
+   "id": "F-050",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "Sch1.3 Business income: 71,900 (2024) -> 81,854 (2025), +14%",
+   "detail": "2024 Sch1.3 (ev-2927). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/Sch1.3"
+   ],
+   "lines": [
+    "Sch1.3"
+   ]
+  },
+  {
+   "id": "F-051",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "Sch1.5 Rental real estate, partnerships, S corporations: 0 (2024) -> -11,830 (2025), new",
+   "detail": "2024 Sch1.5 (ev-2928). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/Sch1.5"
+   ],
+   "lines": [
+    "Sch1.5"
+   ]
+  },
+  {
+   "id": "F-052",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "Sch1.17 Self-employed health insurance deduction: 0 (2024) -> 14,400 (2025), new",
+   "detail": "2024 Sch1.17 (ev-2930). 2024 note: \"No self-employed health insurance deduction: Erik was covered on Ngozi's employer plan in 2024.\" Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/Sch1.17"
+   ],
+   "lines": [
+    "Sch1.17"
+   ]
+  },
+  {
+   "id": "F-053",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.1 Gross receipts: 128,400 (2024) -> 163,700 (2025), +27%",
+   "detail": "2024 SchC.1 (ev-2939). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.1"
+   ],
+   "lines": [
+    "SchC.1"
+   ]
+  },
+  {
+   "id": "F-054",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.9 Car and truck (7,400 miles x 0.67): 4,958 (2024) -> 8,260 (2025), +67%",
+   "detail": "2024 SchC.9 (ev-2941). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.9"
+   ],
+   "lines": [
+    "SchC.9"
+   ]
+  },
+  {
+   "id": "F-055",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.11 Contract labor: 12,400 (2024) -> 7,400 (2025), -40%",
+   "detail": "2024 SchC.11 (ev-2942). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.11"
+   ],
+   "lines": [
+    "SchC.11"
+   ]
+  },
+  {
+   "id": "F-056",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.24a Travel: 6,100 (2024) -> 4,520 (2025), -26%",
+   "detail": "2024 SchC.24a (ev-2947). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.24a"
+   ],
+   "lines": [
+    "SchC.24a"
+   ]
+  },
+  {
+   "id": "F-057",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.28 Total expenses: 55,000 (2024) -> 80,646 (2025), +47%",
+   "detail": "2024 SchC.28 (ev-2951). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.28"
+   ],
+   "lines": [
+    "SchC.28"
+   ]
+  },
+  {
+   "id": "F-058",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.29 Tentative profit: 73,400 (2024) -> 83,054 (2025), +13%",
+   "detail": "2024 SchC.29 (ev-2952). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.29"
+   ],
+   "lines": [
+    "SchC.29"
+   ]
+  },
+  {
+   "id": "F-059",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.31 Net profit: 71,900 (2024) -> 81,854 (2025), +14%",
+   "detail": "2024 SchC.31 (ev-2954). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.31"
+   ],
+   "lines": [
+    "SchC.31"
+   ]
+  },
+  {
+   "id": "F-060",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.44a Business miles: 7,400 (2024) -> 11,800 (2025), +59%",
+   "detail": "2024 SchC.44a (ev-2955). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.44a"
+   ],
+   "lines": [
+    "SchC.44a"
+   ]
+  },
+  {
+   "id": "F-061",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchD.7 Net short-term capital loss: -6,200 (2024) -> 38,146 (2025), +715%",
+   "detail": "2024 SchD.7 (ev-2956). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchD.7"
+   ],
+   "lines": [
+    "SchD.7"
+   ]
+  },
+  {
+   "id": "F-062",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchD.15 Net long-term capital loss: -11,000 (2024) -> 146,881 (2025), +1435%",
+   "detail": "2024 SchD.15 (ev-2957). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchD.15"
+   ],
+   "lines": [
+    "SchD.15"
+   ]
+  },
+  {
+   "id": "F-063",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchD.16 Net capital loss: -17,200 (2024) -> 185,027 (2025), +1176%",
+   "detail": "2024 SchD.16 (ev-2958). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchD.16"
+   ],
+   "lines": [
+    "SchD.16"
+   ]
+  },
+  {
+   "id": "F-064",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.14A Repairs - A: 3,900 (2024) -> 13,300 (2025), +241%",
+   "detail": "2024 SchE.14A (ev-2964). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.14A"
+   ],
+   "lines": [
+    "SchE.14A"
+   ]
+  },
+  {
+   "id": "F-065",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.20A Total expenses - A: 44,019 (2024) -> 53,157 (2025), +21%",
+   "detail": "2024 SchE.20A (ev-2967). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.20A"
+   ],
+   "lines": [
+    "SchE.20A"
+   ]
+  },
+  {
+   "id": "F-066",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.21A Income or (loss) - A: -7,419 (2024) -> -15,957 (2025), -115%",
+   "detail": "2024 SchE.21A (ev-2968). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.21A"
+   ],
+   "lines": [
+    "SchE.21A"
+   ]
+  },
+  {
+   "id": "F-067",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.3B Rents - 1200 Barton Hills Dr 4C (vacant 4 months): 18,128 (2024) -> 20,250 (2025), +12%",
+   "detail": "2024 SchE.3B (ev-2969). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.3B"
+   ],
+   "lines": [
+    "SchE.3B"
+   ]
+  },
+  {
+   "id": "F-068",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.12B Mortgage interest - B: 9,200 (2024) -> 6,900 (2025), -25%",
+   "detail": "2024 SchE.12B (ev-2971). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.12B"
+   ],
+   "lines": [
+    "SchE.12B"
+   ]
+  },
+  {
+   "id": "F-069",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.14B Repairs - B: 6,800 (2024) -> 1,800 (2025), -74%",
+   "detail": "2024 SchE.14B (ev-2972). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.14B"
+   ],
+   "lines": [
+    "SchE.14B"
+   ]
+  },
+  {
+   "id": "F-070",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.16B Taxes - B: 6,900 (2024) -> 5,544 (2025), -20%",
+   "detail": "2024 SchE.16B (ev-2973). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.16B"
+   ],
+   "lines": [
+    "SchE.16B"
+   ]
+  },
+  {
+   "id": "F-071",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.18B Depreciation - B: 9,258 (2024) -> 7,329 (2025), -21%",
+   "detail": "2024 SchE.18B (ev-2974). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.18B"
+   ],
+   "lines": [
+    "SchE.18B"
+   ]
+  },
+  {
+   "id": "F-072",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.20B Total expenses - B: 38,128 (2024) -> 26,773 (2025), -30%",
+   "detail": "2024 SchE.20B (ev-2976). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.20B"
+   ],
+   "lines": [
+    "SchE.20B"
+   ]
+  },
+  {
+   "id": "F-073",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.21B Income or (loss) - B: -20,000 (2024) -> -6,523 (2025), +67%",
+   "detail": "2024 SchE.21B (ev-2977). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.21B"
+   ],
+   "lines": [
+    "SchE.21B"
+   ]
+  },
+  {
+   "id": "F-074",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.22A Deductible rental loss after limitation - A: -9,674 (2024) -> -22,257 (2025), -130%",
+   "detail": "2024 SchE.22A (ev-2978). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.22A"
+   ],
+   "lines": [
+    "SchE.22A"
+   ]
+  },
+  {
+   "id": "F-075",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.26 Total rental real estate: -24,800 (2024) -> -38,630 (2025), -56%",
+   "detail": "2024 SchE.26 (ev-2980). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.26"
+   ],
+   "lines": [
+    "SchE.26"
+   ]
+  },
+  {
+   "id": "F-076",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchE.41 Total Schedule E: 0 (2024) -> -11,830 (2025), new",
+   "detail": "2024 SchE.41 (ev-2984). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchE.41"
+   ],
+   "lines": [
+    "SchE.41"
+   ]
+  },
+  {
+   "id": "F-077",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F8582.1b Rental activities - current-year losses: -27,419 (2024) -> -22,480 (2025), +18%",
+   "detail": "2024 F8582.1b (ev-2985). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F8582.1b"
+   ],
+   "lines": [
+    "F8582.1b"
+   ]
+  },
+  {
+   "id": "F-078",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F8582.1c Prior-year unallowed losses (A 8,555; B 4,976): -13,531 (2024) -> -16,150 (2025), -19%",
+   "detail": "2024 F8582.1c (ev-2986). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F8582.1c"
+   ],
+   "lines": [
+    "F8582.1c"
+   ]
+  },
+  {
+   "id": "F-079",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F8582.4 Net passive loss: -16,150 (2024) -> 93,210 (2025), +677%",
+   "detail": "2024 F8582.4 (ev-2988). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F8582.4"
+   ],
+   "lines": [
+    "F8582.4"
+   ]
+  },
+  {
+   "id": "F-080",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F8606.3 Total basis: 7,000 (2024) -> 14,000 (2025), +100%",
+   "detail": "2024 F8606.3 (ev-2992). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F8606.3"
+   ],
+   "lines": [
+    "F8606.3"
+   ]
+  },
+  {
+   "id": "F-081",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F8606.14 Basis carried to 2025: 7,000 (2024) -> 0 (2025), -100%",
+   "detail": "2024 F8606.14 (ev-2993). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F8606.14"
+   ],
+   "lines": [
+    "F8606.14"
+   ]
+  },
+  {
+   "id": "F-082",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "F2441.2 Qualified expenses - Theo: 6,200 (2024) -> 9,600 (2025), +55%",
+   "detail": "2024 F2441.2 (ev-2995). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/F2441.2"
+   ],
+   "lines": [
+    "F2441.2"
+   ]
+  },
+  {
+   "id": "F-083",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchSE.12 Self-employment tax: 10,159 (2024) -> 11,565 (2025), +14%",
+   "detail": "2024 SchSE.12 (ev-2998). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchSE.12"
+   ],
+   "lines": [
+    "SchSE.12"
+   ]
+  },
+  {
+   "id": "F-084",
+   "severity": "warning",
+   "check": "prior_year_variance",
+   "title": "SchC.27a.1+SchC.27a.2 Other expenses: 18,072 (2024) -> 7,236 (2025), -60%",
+   "detail": "2024 SchC.27a (ev-2950). Needs a variance explanation.",
+   "refs": [
+    "py:/return_2024/lines/SchC.27a"
+   ],
+   "lines": [
+    "SchC.27a.1",
+    "SchC.27a.2"
+   ]
+  },
+  {
+   "id": "F-085",
+   "severity": "warning",
+   "check": "basis_rollforward",
+   "title": "Ridgeline outside basis has never been computed (capital account only)",
+   "detail": "Capital 60,000 (2024 end per prior year 60,000) + 9,870 - 6,000 - 210 = 63,660 (K-1 says 63,660). K-1 income items (box 2 + 5 + 9a) = 9,870 vs current-year net income 9,870. Outside basis (capital + share of liabilities) is unknown; distributions of 6,000 are only safe while basis exceeds them.",
+   "refs": [
+    "D37",
+    "py:/basis_records/partnership_ridgeline/0"
+   ],
+   "lines": [
+    "SchE.28B"
+   ]
+  },
+  {
+   "id": "F-086",
+   "severity": "warning",
+   "check": "document_landings",
+   "title": "D15 Lindqvist Studio - transaction detail for selected accounts: lands on no v3 line and no reason is recorded",
+   "detail": "6 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D15"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-087",
+   "severity": "warning",
+   "check": "document_landings",
+   "title": "D47 Invoice - Delta Breeze Heating & Air (1450 Fremont Way): lands on no v3 line and no reason is recorded",
+   "detail": "2 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D47"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-088",
+   "severity": "warning",
+   "check": "document_landings",
+   "title": "D54 Buyer closing statement - 7709 Barton Ridge Dr (purchase 07/08/2025): lands on no v3 line and no reason is recorded",
+   "detail": "4 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D54"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-089",
+   "severity": "warning",
+   "check": "document_landings",
+   "title": "D73 Halvorsen Data paystub - pay date 07/18/2025 (Ngozi Okafor): lands on no v3 line and no reason is recorded",
+   "detail": "2 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D73"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-090",
+   "severity": "warning",
+   "check": "client_contradictions",
+   "title": "qa-14 says no investments sold; brokers report 283 sales",
+   "detail": "D28 5, D31 18, D74 260 (direct indexing sells automatically). Confirm with client; organizer answers cannot be relied on for completeness.",
+   "refs": [
+    "qa-14",
+    "D28",
+    "D31",
+    "D74"
+   ],
+   "lines": [
+    "SchD.16"
+   ]
+  },
+  {
+   "id": "F-091",
+   "severity": "warning",
+   "check": "client_contradictions",
+   "title": "qa-15 \"didn't really sell\" vs 12 dispositions on Form 1099-DA",
+   "detail": "34,833 gross proceeds on D34. \"Moved things around\" also explains lot C6 (transfer-in with no basis).",
+   "refs": [
+    "qa-15",
+    "D34"
+   ],
+   "lines": [
+    "SchD.3",
+    "SchD.10"
+   ]
+  },
+  {
+   "id": "F-092",
+   "severity": "warning",
+   "check": "client_contradictions",
+   "title": "Prior preparer left Form 3520 (2023 foreign inheritance) unresolved",
+   "detail": "\"2023 Form 3520 (foreign inheritance over 100,000) - discussed? (no note of resolution)\" qa-07: \"Yes - Erik's savings account in Sweden (inherited from his mother in 2023).\" D36: \"Account opened 09/2023 (inheritance from Birgitta Lindqvist)\". Not a 2025 return item, but a penalty exposure (5% per month, up to 25%) the engagement should raise in writing.",
+   "refs": [
+    "py:/prior_preparer_workpaper/open_items_left_by_prior_preparer/3",
+    "qa-07",
+    "D36"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-093",
+   "severity": "warning",
+   "check": "independent_recompute",
+   "title": "Form 8867 due diligence not completed for the child tax credit / credit for other dependents",
+   "detail": "F8867.status = \"Not completed\". Firm rule: \"Due diligence must be documented for the child tax credit, credit for other dependents, American opportunity credit, earned income credit and head of household status.\"",
+   "refs": [],
+   "lines": [
+    "F8867.status",
+    "F1040.19"
+   ]
+  },
+  {
+   "id": "F-094",
+   "severity": "warning",
+   "check": "independent_recompute",
+   "title": "Contractors paid 4,800 and 2,600 with no Forms 1099-NEC (due 2026-02-02)",
+   "detail": "D27, qa-23, call-01. Schedule C line J answered \"No\". Outside engagement scope (D01) - advise in writing.",
+   "refs": [
+    "D27",
+    "qa-23",
+    "call-01",
+    "D01"
+   ],
+   "lines": [
+    "SchC.I",
+    "SchC.J"
+   ]
+  },
+  {
+   "id": "F-095",
+   "severity": "info",
+   "check": "extraction_vs_printed",
+   "title": "D08 Box 10 dependent care benefits: extracted 0 does not appear on page 1",
+   "detail": "ev-0022, confidence 0.99, read as \"0.00\". Page says: \"Form W-2 2025. Employer Corvane Systems, Inc., EIN 82-4471903, 500 Harbor Blvd, San Francisco CA. Employee Ngozi Okafor, SSN 666-41-2287. Box 1 104,600.00; Box 2 15,800.00; Box 3 112,000.00; Box 4 6,944.00; Box 5 112,000.00; Box 6 1,624.00; Box 12 D 7,400.00, ...\" Not used on the return.",
+   "refs": [
+    "ev-0022",
+    "doc:D08#page1"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-096",
+   "severity": "info",
+   "check": "duplicate_documents",
+   "title": "D10 duplicates D09 (100% of amounts identical)",
+   "detail": "2025 Form W-2 - Halvorsen Data LLC (Ngozi Okafor) / Form W-2 - Halvorsen Data LLC (phone photo). No v3 line takes the same field from both - counted once.",
+   "refs": [
+    "D09",
+    "D10"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-097",
+   "severity": "info",
+   "check": "duplicate_documents",
+   "title": "D31 is a CORRECTED reissue of D30 (95% of amounts identical)",
+   "detail": "Meridian Brokerage 2025 consolidated Form 1099 (joint) / Meridian Brokerage 2025 consolidated Form 1099 - CORRECTED (joint). No v3 line takes the same field from both - counted once.",
+   "refs": [
+    "D30",
+    "D31"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-098",
+   "severity": "info",
+   "check": "corrected_documents",
+   "title": "D31 corrects D30: 4 field(s) changed",
+   "detail": "M6_wash: 735 -> 512; M9_basis: 6900 -> 4880; M14_acquired: \"2024-10-15\" -> \"2024-09-15\"; M14_term: \"short\" -> \"long\". Versions used: v1: D30, v2: D31, v3: D31. Original superseded wherever the corrected copy is used.",
+   "refs": [
+    "D30",
+    "D31"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-099",
+   "severity": "info",
+   "check": "corrected_documents",
+   "title": "D74: all 260 lots on the return; detail proceeds 334,728.52 = broker summary",
+   "detail": "",
+   "refs": [
+    "D74"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-100",
+   "severity": "info",
+   "check": "version_deltas",
+   "title": "v1 -> v2: 63 lines changed, 63 listed in changes_from_previous",
+   "detail": "Trigger: Recompute: corrected Meridian Brokerage 1099 received 2026-03-18. Documents added: D31, D69; dropped: D30; newly superseded: D30. Federal total tax 77,200 -> 77,470; CA 17,845 -> 17,999.",
+   "refs": [
+    "v1",
+    "v2"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-101",
+   "severity": "info",
+   "check": "version_deltas",
+   "title": "v2 -> v3: 89 lines changed, 89 listed in changes_from_previous",
+   "detail": "Trigger: Recompute: Ridgeline K-1 and state supplement received 2026-06-22; 2023 S corporation K-1 (received 2026-06-05), SEP confirmation and 2025 Form 5498 now in file; extension payments made 2026-04-14. Documents added: D26, D37, D38, D40, D43, D73; dropped: none; newly superseded: none. Federal total tax 77,470 -> 81,962; CA 17,999 -> 18,874.",
+   "refs": [
+    "v2",
+    "v3"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-102",
+   "severity": "info",
+   "check": "basis_rollforward",
+   "title": "v1 F7203.1 beginning stock basis 8,200 vs rollforward 2,300",
+   "detail": "2022 end 21,300 (client worksheet, no K-1 in file); 2023 21,300 + 14,100 + 0 - 20,000 = 15,400 (D40, received 2026-06-05); 2024 15,400 + 16,900 - 30,000 = 2,300. v1 assumed no change for the missing year; gain from distributions in excess of basis in v1: 15,315. Fixed in v3 once D40 arrived.",
+   "refs": [
+    "py:/basis_records/scorp_lindqvist_family_woodworks",
+    "D40",
+    "D39"
+   ],
+   "lines": [
+    "F7203.1"
+   ]
+  },
+  {
+   "id": "F-103",
+   "severity": "info",
+   "check": "basis_rollforward",
+   "title": "v2 F7203.1 beginning stock basis 8,200 vs rollforward 2,300",
+   "detail": "2022 end 21,300 (client worksheet, no K-1 in file); 2023 21,300 + 14,100 + 0 - 20,000 = 15,400 (D40, received 2026-06-05); 2024 15,400 + 16,900 - 30,000 = 2,300. v2 assumed no change for the missing year; gain from distributions in excess of basis in v2: 15,315. Fixed in v3 once D40 arrived.",
+   "refs": [
+    "py:/basis_records/scorp_lindqvist_family_woodworks",
+    "D40",
+    "D39"
+   ],
+   "lines": [
+    "F7203.1"
+   ]
+  },
+  {
+   "id": "F-104",
+   "severity": "info",
+   "check": "basis_rollforward",
+   "title": "S corp basis rollforward now complete: 2024 ending basis 2,300; 2025 distributions 42,000 exceed basis by 21,215",
+   "detail": "2022 end 21,300 (client worksheet, no K-1 in file); 2023 21,300 + 14,100 + 0 - 20,000 = 15,400 (D40, received 2026-06-05); 2024 15,400 + 16,900 - 30,000 = 2,300. 2025: 2,300 + 18,400 + 85 - 42,000 -> 21,215 capital gain (F8949.F.SCORP). Prior preparer \"assumed basis sufficient\" for 2024 without D40: it was, by 2,300. D39 notes 1,580 Oregon composite tax is inside the distributions.",
+   "refs": [
+    "D40",
+    "D39",
+    "py:/prior_preparer_workpaper/notes/0"
+   ],
+   "lines": [
+    "F7203.1",
+    "F7203.excess"
+   ]
+  },
+  {
+   "id": "F-105",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D01 Engagement letter, tax year 2025 (signed): lands on no v3 line (engagement / identity record: supports a required step, not a return number)",
+   "detail": "3 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D01"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-106",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D02 Consent to use and disclose tax return information: lands on no v3 line (engagement / identity record: supports a required step, not a return number)",
+   "detail": "1 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D02"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-107",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D03 IRS notice CP01A - Identity Protection PIN (Ngozi Okafor): lands on no v3 line (engagement / identity record: supports a required step, not a return number)",
+   "detail": "1 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D03"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-108",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D04 Driver license - Ngozi Okafor: lands on no v3 line (engagement / identity record: supports a required step, not a return number)",
+   "detail": "2 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D04"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-109",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D05 Driver license - Erik Lindqvist: lands on no v3 line (engagement / identity record: supports a required step, not a return number)",
+   "detail": "2 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D05"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-110",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D10 Form W-2 - Halvorsen Data LLC (phone photo): lands on no v3 line (duplicate image of D09, counted once)",
+   "detail": "17 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D10"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-111",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D13 Form 3922 - ESPP transfer (Corvane): lands on no v3 line (tax year 2024 document)",
+   "detail": "6 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D13"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-112",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D30 Meridian Brokerage 2025 consolidated Form 1099 (joint): lands on no v3 line (superseded by a corrected copy in v3)",
+   "detail": "159 values extracted; not in v3 documents_used.",
+   "refs": [
+    "D30"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-113",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D69 IRS account transcript, tax period Dec 2025 (pulled by firm): lands on no v3 line (not extracted: Agency transcript; reproduced as structured data in tax_agency_records.irs_account_transcript_2025.)",
+   "detail": "0 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D69"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-114",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D70 IRS CP2000 for tax year 2023 and resolution letter: lands on no v3 line (not extracted: Resolved prior-year notice; summarized in tax_agency_records.notices.)",
+   "detail": "0 values extracted; listed in v3 documents_used.",
+   "refs": [
+    "D70"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-115",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D71 Social Security card - Theo Lindqvist-Okafor (photo): lands on no v3 line (engagement / identity record: supports a required step, not a return number)",
+   "detail": "1 values extracted; not in v3 documents_used.",
+   "refs": [
+    "D71"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-116",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D72 IRS Letter 566 - examination of 2025 return: lands on no v3 line (not extracted: Examination letter received after filing; summarized in tax_agency_records.notices.)",
+   "detail": "0 values extracted; not in v3 documents_used.",
+   "refs": [
+    "D72"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-117",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D08: 5 amount(s) not used on the return",
+   "detail": "ev-0018 Box 3 social security wages 112,000; ev-0023 Box 12 code D 7,400; ev-0025 Box 12 code DD 9,200; ev-0027 Box 14 RSU 38,200; ev-0028 Box 14 ESPP 675",
+   "refs": [
+    "ev-0018",
+    "ev-0023",
+    "ev-0025",
+    "ev-0027",
+    "ev-0028"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-118",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D09: 3 amount(s) not used on the return",
+   "detail": "ev-0037 Box 3 social security wages 118,000; ev-0042 Box 12 code D 10,200; ev-0044 Box 12 code DD 11,400",
+   "refs": [
+    "ev-0037",
+    "ev-0042",
+    "ev-0044"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-119",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D10: 12 amount(s) not used on the return",
+   "detail": "ev-0052 Box 1 wages, tips, other compensation 107,800; ev-0053 Box 2 federal income tax withheld 9,600; ev-0054 Box 3 social security wages 118,000; ev-0055 Box 4 social security tax withheld 7,316; ev-0056 Box 5 Medicare wages 118,000; ev-0057 Box 6 Medicare tax withheld 1,711; ev-0058 Box 10 dependent care benefits 5,000; ev-0059 Box 12 code D 10,200; ev-0060 Box 12 code W 3,500; ev-0061 Box 12 code DD 11,400; ev-0064 Box 16 state wages (CA) 111,300; ev-0065 Box 17 state income tax (CA) 4,180",
+   "refs": [
+    "ev-0052",
+    "ev-0053",
+    "ev-0054",
+    "ev-0055",
+    "ev-0056",
+    "ev-0057",
+    "ev-0058",
+    "ev-0059",
+    "ev-0060",
+    "ev-0061",
+    "ev-0064",
+    "ev-0065"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-120",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D11: 1 amount(s) not used on the return",
+   "detail": "ev-0074 ESPP-2406 ordinary income in W-2 675",
+   "refs": [
+    "ev-0074"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-121",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D14: 7 amount(s) not used on the return",
+   "detail": "ev-0086 Sales - client projects 145,900; ev-0087 Sales - print and licensing 5,400; ev-0090 Car and truck - fuel 3,100; ev-0092 Depreciation 7,600; ev-0094 Insurance - health (Erik) 14,400; ev-0104 Total expenses 61,466; ev-0105 Net income 89,834",
+   "refs": [
+    "ev-0086",
+    "ev-0087",
+    "ev-0090",
+    "ev-0092",
+    "ev-0094",
+    "ev-0104",
+    "ev-0105"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-122",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D15: 6 amount(s) not used on the return",
+   "detail": "ev-0106 Spotify Family 216; ev-0107 Mobile plan per month (4 lines) 180; ev-0108 Home internet per month 110; ev-0109 Atlas Outdoor Gear receipts via Paywell 12,400; ev-0110 Atlas Outdoor Gear total receipts 41,200; ev-0111 Deposits from clients without Form 1099 9,300",
+   "refs": [
+    "ev-0106",
+    "ev-0107",
+    "ev-0108",
+    "ev-0109",
+    "ev-0110",
+    "ev-0111"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-123",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D21: 6 amount(s) not used on the return",
+   "detail": "ev-0131 Box 5 month 3 1,850; ev-0133 Box 5 month 5 2,400; ev-0135 Box 5 month 7 3,100; ev-0137 Box 5 month 9 1,650; ev-0138 Box 5 month 10 2,200; ev-0140 Box 5 month 12 1,200",
+   "refs": [
+    "ev-0131",
+    "ev-0133",
+    "ev-0135",
+    "ev-0137",
+    "ev-0138",
+    "ev-0140"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-124",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D34: 1 amount(s) not used on the return",
+   "detail": "ev-0907 Total gross proceeds 34,833",
+   "refs": [
+    "ev-0907"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-125",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D35: 14 amount(s) not used on the return",
+   "detail": "ev-0933 Buy 1 cost 1,858.63; ev-0935 Buy 2 cost 528.38; ev-0937 Buy 3 cost 1,060.3; ev-0939 Buy 4 cost 2,128.6; ev-0941 Buy 5 cost 1,140.16; ev-0943 Buy 6 cost 451.63; ev-0945 Buy 7 cost 2,006.19; ev-0947 Buy 8 cost 2,210.94; ev-0949 Buy 9 cost 474.27; ev-0951 Buy 10 cost 1,858.62; ev-0953 Buy 11 cost 1,669.9; ev-0955 Buy 12 cost 1,157.55; ev-0957 Buy 13 cost 1,521.93; ev-0959 Buy 14 cost 1,547.51",
+   "refs": [
+    "ev-0933",
+    "ev-0935",
+    "ev-0937",
+    "ev-0939",
+    "ev-0941",
+    "ev-0943",
+    "ev-0945",
+    "ev-0947",
+    "ev-0949",
+    "ev-0951",
+    "ev-0953",
+    "ev-0955",
+    "ev-0957",
+    "ev-0959"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-126",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D37: 3 amount(s) not used on the return",
+   "detail": "ev-0967 Box 19A distributions 6,000; ev-0969 Beginning capital account 60,000; ev-0970 Ending capital account 63,660",
+   "refs": [
+    "ev-0967",
+    "ev-0969",
+    "ev-0970"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-127",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D46: 1 amount(s) not used on the return",
+   "detail": "ev-1001 Repairs - HVAC (Delta Breeze) 11,000",
+   "refs": [
+    "ev-1001"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-128",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D47: 1 amount(s) not used on the return",
+   "detail": "ev-1004 Invoice total 11,000",
+   "refs": [
+    "ev-1004"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-129",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D51: 1 amount(s) not used on the return",
+   "detail": "ev-1021 Land value 62,000",
+   "refs": [
+    "ev-1021"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-130",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D54: 4 amount(s) not used on the return",
+   "detail": "ev-1025 Purchase price 685,000; ev-1026 Origination points paid by buyer 4,800; ev-1027 Seller credit for 2025 taxes 6,912; ev-1028 Prepaid interest at closing 2,374.3",
+   "refs": [
+    "ev-1025",
+    "ev-1026",
+    "ev-1027",
+    "ev-1028"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-131",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D55: 1 amount(s) not used on the return",
+   "detail": "ev-1031 Box 2 outstanding principal 548,000",
+   "refs": [
+    "ev-1031"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-132",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D56: 1 amount(s) not used on the return",
+   "detail": "ev-1033 Principal paid off 546,311.08",
+   "refs": [
+    "ev-1033"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-133",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D66: 1 amount(s) not used on the return",
+   "detail": "ev-1054 Box 4c gross proceeds from sale 2,900",
+   "refs": [
+    "ev-1054"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-134",
+   "severity": "info",
+   "check": "document_landings",
+   "title": "D73: 2 amount(s) not used on the return",
+   "detail": "ev-1081 YTD California taxable wages through 07/15/2025 22,469; ev-1082 YTD gross wages through 07/15/2025 25,969",
+   "refs": [
+    "ev-1081",
+    "ev-1082"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-135",
+   "severity": "info",
+   "check": "client_contradictions",
+   "title": "qa-31 says no prior IRA basis; 2024 Form 8606 and Form 5498 for 2024 show 7,000",
+   "detail": "D42: Form 5498 tax year 2024. Box 1 IRA contributions 7,000.00 (made 02/12/2025 for tax year 2024). Box 5 fair market value 12/31/2024 0.00. The engine correctly used the 2024 basis (F8606.2); taxable conversion 26. Record the client's answer as wrong.",
+   "refs": [
+    "qa-31",
+    "D42",
+    "py:/basis_records/ira_nondeductible_basis_ngozi/0"
+   ],
+   "lines": [
+    "F8606.2"
+   ]
+  },
+  {
+   "id": "F-136",
+   "severity": "info",
+   "check": "client_contradictions",
+   "title": "Prior preparer open item: Obtain 2023 Woodworks K-1 to roll basis forward.",
+   "detail": "Resolved: D40 received 2026-06-05",
+   "refs": [
+    "py:/prior_preparer_workpaper/open_items_left_by_prior_preparer/0"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-137",
+   "severity": "info",
+   "check": "client_contradictions",
+   "title": "Prior preparer open item: Confirm 2024 Form 5498 for IRA basis.",
+   "detail": "Resolved: D42 in file",
+   "refs": [
+    "py:/prior_preparer_workpaper/open_items_left_by_prior_preparer/1"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-138",
+   "severity": "info",
+   "check": "client_contradictions",
+   "title": "Prior preparer open item: Client to confirm home office square footage.",
+   "detail": "Resolved for 2025: D24 (220 / 260 sq ft); 2024 claimed 300",
+   "refs": [
+    "py:/prior_preparer_workpaper/open_items_left_by_prior_preparer/2"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-139",
+   "severity": "info",
+   "check": "agency_payments",
+   "title": "Extension paid 36,000 against v2's estimate; any final balance due accrues interest and failure-to-pay penalty from 2026-04-15",
+   "detail": "what_if.extension: {\"estimated_total_tax\":77470,\"payments\":41742,\"estimated_balance\":35728,\"paid_with_form_4868\":36000,\"rule\":\"balance due rounded up to the next 500\"}. Transcript (as of 2026-08-03) assesses 196/276 after the 2026-07-20 payment. Rates: {\"irs_underpayment_interest_rate_annual\":0.07,\"irs_failure_to_pay_penalty_per_month\":0.005,\"ftb_interest_rate_annual\":0.07,\"ftb_late_payment_penalty\":\"5% plus 0.5% per month\",\"note\":\"The engine does not compute post-filing interest or penalties. An extension of time to file is not an extension of time to pay.\"}.",
+   "refs": [
+    "timeline:extension-2026-04-14",
+    "agency:/irs_account_transcript_2025/1"
+   ],
+   "lines": [
+    "Sch3.10",
+    "F1040.37"
+   ]
+  },
+  {
+   "id": "F-140",
+   "severity": "info",
+   "check": "residency",
+   "title": "CA residency 2025-01-01..2025-07-14 = 195 of 365 days; engine ratio 195/365",
+   "detail": "Move date evidence: household.residency (TX from): 2025-07-15; qa-02: July 15; D24 Austin office from: 2025-07-16; D73 work location Austin effective: 07/15/2025; D61 Sacramento child care ends: July 11.",
+   "refs": [
+    "household:residency",
+    "qa-02",
+    "ev-0483",
+    "D73"
+   ],
+   "lines": []
+  },
+  {
+   "id": "F-141",
+   "severity": "info",
+   "check": "independent_recompute",
+   "title": "Foreign account max 149,567 USD: Form 8938 required; FBAR outside engagement",
+   "detail": "D36 max SEK 1,452,300 / 9.71. 2024 8938 max 151,880.",
+   "refs": [
+    "D36",
+    "D01"
+   ],
+   "lines": [
+    "F8938.req"
+   ]
+  }
+ ]
+}
