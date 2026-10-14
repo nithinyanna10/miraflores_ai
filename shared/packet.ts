@@ -127,6 +127,7 @@ export function breakHop(line: Line, f: Finding, g: Graph): string {
 // ---------- money and dates ----------
 export function fmt(v: any, cents = false): string {
   if (typeof v !== 'number') return v == null ? '' : String(v);
+  if (Number.isNaN(v)) return '';
   if (Math.abs(v) < 1 && v !== 0 && !Number.isInteger(v)) return String(v); // ratios
   const s = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
   return v < 0 ? `(${s})` : s;

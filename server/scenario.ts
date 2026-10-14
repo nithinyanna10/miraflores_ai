@@ -64,6 +64,19 @@ export function seedMidSeason(g: Graph, append: Append, log: () => StoredEvent[]
   append('cu-02', 'client_answer', ['F8949.H.C6'], { question: q1.seq, text: msg('msg-07') }, at('2026-06-30T18:02'));
   append('cu-01', 'client_answer', ['SchA.11'], { question: q2.seq, text: msg('msg-08') }, at('2026-07-01T16:40'));
 
+  // Staffing and time: Marcus joined 2026-03-24 (timeline) and took investments; hours logged by area.
+  append('st-05', 'assigned', ['area:Whole return'], { area: 'investments_and_digital_assets', person: 'st-04' }, at('2026-03-24T15:30'));
+  const hours: [string, string, number, string][] = [
+    ['st-01', 'intake_and_engagement', 1.0, '2026-03-09T16:00'], ['st-01', 'wages_and_stock_compensation', 2.5, '2026-03-10T17:00'],
+    ['st-01', 'investments_and_digital_assets', 3.0, '2026-03-13T17:00'], ['st-04', 'investments_and_digital_assets', 2.5, '2026-03-28T17:00'],
+    ['st-01', 'business', 4.0, '2026-03-27T18:00'], ['st-01', 'rentals_and_sale', 2.0, '2026-04-01T17:00'], ['st-01', 'pass_throughs_and_basis', 2.5, '2026-06-24T17:00'],
+    ['st-02', 'wages_and_stock_compensation', 0.8, '2026-03-20T15:00'], ['st-02', 'investments_and_digital_assets', 1.0, '2026-03-20T16:00'], ['st-03', 'partner_review', 0.5, '2026-04-02T18:30'],
+  ];
+  for (const [who, area, h, when] of hours) append(who, 'time_logged', ['area:Whole return'], { area, hours: h }, at(when));
+  // The view log: Priya unmasked a W-2 to check the SSN; Marcus (no clearance) tried and was refused.
+  append('st-01', 'sensitive_viewed', ['doc:D08#page1'], {}, at('2026-03-10T15:05'));
+  append('st-04', 'sensitive_view_refused', ['doc:D09#page1'], { reason: 'no sensitive-data clearance' }, at('2026-03-28T14:20'));
+
   // An open review note the preparer still has to answer.
   append('st-02', 'review_note_opened', ['Sch1.16'], { text: 'SEP contribution 18,000 vs deductible 15,214. Did we advise Erik to withdraw the 2,786 excess with earnings before 10/15? Document the advice or the decision.' }, at('2026-06-25T13:30'));
 }

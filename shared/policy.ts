@@ -26,6 +26,8 @@ export const ALLOWED: Record<string, string[]> = {
   signoff_withdrawn: WORKERS,
   adjusted: WORKERS,
   election_recorded: WORKERS,
+  time_logged: STAFF,
+  assigned: ['firm_administrator', 'partner'],
   recompute_recorded: WORKERS,
   variance_explained: WORKERS,
   variance_explanation_withdrawn: WORKERS,
@@ -47,7 +49,7 @@ export const ALLOWED: Record<string, string[]> = {
 export const VERB: Record<string, string> = {
   verified: 'verify a number', verification_withdrawn: 'withdraw a verification', note: 'add a note',
   review_note_opened: 'write a review note', review_note_replied: 'reply to a review note', review_note_cleared: 'clear a review note',
-  adjusted: 'adjust a line', election_recorded: 'record an election', recompute_recorded: 'record a recompute', variance_explained: 'explain a variance', variance_explanation_withdrawn: 'withdraw a variance explanation', adjustment_reversed: 'reverse an adjustment', adjustment_approved: 'approve an adjustment', sent_for_approval: 'send the return for client approval', client_signed_8879: 'sign Form 8879', efile_transmitted: 'transmit the return', efile_response: 'record an agency response', amendment_opened: 'open an amendment', amendment_filed: 'file an amendment', notice_response_prepared: 'prepare a notice response', carried_forward: 'carry forward to 2026', signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
+  time_logged: 'log time', assigned: 'assign work', adjusted: 'adjust a line', election_recorded: 'record an election', recompute_recorded: 'record a recompute', variance_explained: 'explain a variance', variance_explanation_withdrawn: 'withdraw a variance explanation', adjustment_reversed: 'reverse an adjustment', adjustment_approved: 'approve an adjustment', sent_for_approval: 'send the return for client approval', client_signed_8879: 'sign Form 8879', efile_transmitted: 'transmit the return', efile_response: 'record an agency response', amendment_opened: 'open an amendment', amendment_filed: 'file an amendment', notice_response_prepared: 'prepare a notice response', carried_forward: 'carry forward to 2026', signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
 };
 export const can = (a: Actor | undefined, type: string) => !!a && isActive(a) && (ALLOWED[type] ?? []).includes(a.role);
 
@@ -112,6 +114,8 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
   // Firm rule: every judgment call records the authority relied on.
   if (e.type === 'election_recorded' && (!String(e.payload?.reason ?? '').trim() || !String(e.payload?.authority ?? '').trim() || !['adopt', 'reject'].includes(e.payload?.decision)))
     return 'Record the decision, the reason and the authority relied on.';
+  if (e.type === 'time_logged' && !(Number(e.payload?.hours) > 0 && Number(e.payload?.hours) <= 12 && BUDGET_AREAS(g).includes(e.payload?.area))) return 'Log between 0.1 and 12 hours against a budget area.';
+  if (e.type === 'assigned' && !(BUDGET_AREAS(g).includes(e.payload?.area) && g.P.firm.staff.some((s: any) => s.id === e.payload?.person && ['preparer', 'reviewer', 'partner'].includes(s.role)))) return 'Assign a budget area to a preparer, reviewer or partner.';
   if (e.type === 'recompute_recorded') {
     const ids: number[] = e.payload?.adjustments ?? [];
     if (!ids.length || !ids.every(id => log.some(x => x.type === 'adjusted' && x.seq === id))) return 'Name the adjustments this recompute covers.';
@@ -192,10 +196,13 @@ export function currentValue(g: Graph, log: StoredEvent[], key: string): any {
 // ---------- what a client may see ----------
 // Clients see questions addressed to them, their own answers and uploads, files staff chose to share,
 // and their own unmasking. Review notes, open items, judgment calls, verifications and sign-offs are internal.
+export const BUDGET_AREAS = (g: Graph) => Object.keys(g.P.firm.budget_hours);
 export const CLIENT_TYPES = new Set(['client_question', 'client_answer', 'client_signed_8879', 'sent_for_approval', 'return_frozen']);
 export const ATTACH_ROLES = [...STAFF, 'client'];
 export function visibleTo(a: Actor | undefined, e: StoredEvent, people: Actor[]): boolean {
   if (!a) return false;
+  // The view log (who unmasked what) is for the firm administrator and the partner; others see their own.
+  if (e.type.startsWith('sensitive_view')) return ['firm_administrator', 'partner'].includes(a.role) || e.actor === a.id;
   if (a.role !== 'client') return true;
   if (CLIENT_TYPES.has(e.type)) return true;
   const byClient = people.find(p => p.id === e.actor)?.role === 'client';

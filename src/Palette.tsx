@@ -3,16 +3,18 @@ import { fmt, type Graph } from '../shared/packet.ts';
 
 type Item = { kind: string; ref: string; text: string; hint: string };
 
-export function Palette({ g, onClose, onPick }: { g: Graph; onClose: () => void; onPick: (kind: string, ref: string) => void }) {
+export function Palette({ g, onClose, onPick, notes = [] }: { g: Graph; onClose: () => void; onPick: (kind: string, ref: string) => void; notes?: { seq: number; refs: string[]; type: string; payload: any }[] }) {
   const [q, setQ] = useState('');
   const [i, setI] = useState(0);
   const all = useMemo<Item[]>(() => [
+    // What people wrote: notes, review notes, reasons, answers. Ranked first: jumps to the line it was written on.
+    ...notes.filter(e => (e.payload?.text || e.payload?.reason) && e.refs.some(r => g.line(r))).map(e => ({ kind: 'line', ref: e.refs.find(r => g.line(r))!, text: `${e.refs.find(r => g.line(r))} ${e.payload.text ?? e.payload.reason}`, hint: e.type.replace(/_/g, ' ') })),
     ...Object.values(g.lines.v3).map(l => ({ kind: 'line', ref: l.key, text: `${l.key} ${l.label}`, hint: fmt(l.value) })),
     ...Object.values(g.docs).map((d: any) => ({ kind: 'doc', ref: d.id, text: `${d.id} ${d.title}`, hint: 'Document' })),
     ...Object.values(g.evs).map(e => ({ kind: 'ev', ref: e.id, text: `${e.id} ${e.document_id} ${e.label}`, hint: fmt(e.value) })),
     ...g.P.client.questionnaire.map((x: any) => ({ kind: 'qa', ref: x.id, text: `${x.id} ${x.question} ${x.answer}`, hint: 'Questionnaire' })),
     ...g.P.client.messages.map((x: any) => ({ kind: 'msg', ref: x.id, text: `${x.id} ${x.from} ${x.text}`, hint: 'Message' })),
-  ], [g]);
+  ], [g, notes]);
   const hits = useMemo(() => {
     const ts = q.toLowerCase().split(/\s+/).filter(Boolean);
     if (!ts.length) return all.filter(x => x.kind === 'line').slice(0, 30);
@@ -31,7 +33,7 @@ export function Palette({ g, onClose, onPick }: { g: Graph; onClose: () => void;
           }} />
         <ul>
           {hits.map((h, j) => (
-            <li key={h.kind + h.ref} className={j === i ? 'is-active' : ''} onMouseEnter={() => setI(j)} onClick={() => onPick(h.kind, h.ref)}>
+            <li key={h.kind + h.ref + h.text.length} className={j === i ? 'is-active' : ''} onMouseEnter={() => setI(j)} onClick={() => onPick(h.kind, h.ref)}>
               <span className="ref">{h.ref}</span><span className="palette-text">{h.text.slice(h.ref.length + 1)}</span><span className="num muted">{h.hint}</span>
             </li>
           ))}

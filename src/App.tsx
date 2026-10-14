@@ -12,8 +12,10 @@ import { ClientApp } from './ClientApp.tsx';
 import { ChangesDrawer, Compare, WhatIfs, readCursor, writeCursor } from './Views.tsx';
 import { SignIn, signOut } from './SignIn.tsx';
 import { FilingView, Season } from './Filing.tsx';
+import { Records } from './Records.tsx';
+import { FirmView } from './Firm.tsx';
 
-type Sel = { line?: string; src?: string; view?: string; a?: string; b?: string; asof?: string };
+type Sel = { line?: string; src?: string; view?: string; a?: string; b?: string; asof?: string; rec?: string };
 const readHash = (): Sel => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
 const writeHash = (s: Sel) => {
   const q = new URLSearchParams(Object.entries(s).filter(([, v]) => v) as [string, string][]).toString();
@@ -124,6 +126,8 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
           <button aria-current={sel.view === 'whatif'} onClick={() => go({ view: 'whatif', asof: sel.asof })}>What-ifs</button>
           <button aria-current={sel.view === 'filing'} onClick={() => go({ view: 'filing', asof: sel.asof })}>Filing</button>
           <button aria-current={sel.view === 'season'} onClick={() => go({ view: 'season', asof: sel.asof })}>Season</button>
+          <button aria-current={sel.view === 'records'} onClick={() => go({ view: 'records', asof: sel.asof })}>Records</button>
+          <button aria-current={sel.view === 'firm'} onClick={() => go({ view: 'firm', asof: sel.asof })}>Firm</button>
         </nav>
         <button className="search" onClick={() => setPalette(true)}>Search <kbd>⌘K</kbd></button>
         {me?.role === 'firm_administrator' && <ResetDemo user={user} />}
@@ -139,6 +143,8 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
           {sel.view === 'compare' ? <Compare g={g} w={w} a={sel.a ?? 'v2'} b={sel.b ?? 'v3'} onPick={(a, b) => go({ view: 'compare', a, b })} onLine={k => openLine(k)} />
           : sel.view === 'whatif' ? <WhatIfs g={g} w={w} onLine={k => openLine(k)} />
           : sel.view === 'filing' ? <FilingView g={g} w={w} onLine={k => openLine(k)} />
+          : sel.view === 'records' ? <Records g={g} w={w} which={sel.rec} onPick={rec => go({ view: 'records', rec, asof: sel.asof })} onLine={k => openLine(k)} />
+          : sel.view === 'firm' ? <FirmView g={g} w={w} areas={areas} onLine={k => openLine(k)} />
           : sel.view === 'season' ? <Season g={g} w={w} asOf={sel.asof} onAsOf={d => go({ view: 'season', asof: d })} />
           : sel.line && g.line(sel.line)
             ? <Thread g={g} w={w} lineKey={sel.line} src={sel.src} onLine={openLine} onSrc={src => go({ ...sel, src })} form={form} setForm={setForm} />
@@ -150,7 +156,7 @@ function StaffApp({ user, people }: { user: string; people: Actor[] }) {
       {drawer && <ChangesDrawer g={g} w={w} changes={changes} onLine={k => openLine(k)} onClose={() => setDrawer(false)} onSeen={() => { const s = w.events.at(-1)!.seq; writeCursor(user, s); setCursor(s); setDrawer(false); }} />}
       <Connector deps={[sel.line, sel.src]} />
       {toast && <div className="toast" role="status"><span>{toast.text}</span>{toast.undo && <button className="btn quiet" onClick={toast.undo}>Undo</button>}<button className="link" onClick={() => setToast(null)} aria-label="Dismiss">Dismiss</button></div>}
-      {palette && <Palette g={g} onClose={() => setPalette(false)} onPick={(kind, ref) => {
+      {palette && <Palette g={g} notes={w.events} onClose={() => setPalette(false)} onPick={(kind, ref) => {
         setPalette(false);
         if (kind === 'line') openLine(ref);
         else if (kind === 'ev') { const k = Object.values(g.lines.v3).find(l => l.sources.includes(ref))?.key; k ? openLine(k, ref) : go({ src: ref }); }

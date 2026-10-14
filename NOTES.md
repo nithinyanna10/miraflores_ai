@@ -206,3 +206,44 @@ Stack decisions:
 - **In the app**, the approval section has "How these amounts tie to the audit", with the same table.
 - **E-file overrides.** Every unmet required step must be confirmed with its own reason (the server refuses otherwise). The log shows a red block, "Transmitted with N required steps not done", with each step and the partner's reason on its own line in serif.
 - **Live test runs.** Every e2e script resets a non-local target to the mid-season scenario in a `finally` block, so the live demo is never left in a test state.
+
+## Phase 5: CPA records and the firm view
+
+### Screen plan: Records (one view, a list of records on the left of the middle pane, the record on the right)
+1. Ten records a CPA expects, each computed from the packet plus the live adjustments, never retyped. Every number links to its line's proof thread:
+   - return summary vs 2024;
+   - depreciation by asset (federal, California, AMT);
+   - sales by broker and box with lot rollups and the broker-summary tie-out;
+   - books to tax for Schedule C, as a reconciliation that must tie to zero;
+   - rentals and passive losses;
+   - K-1 boxes and where each landed;
+   - the CA/TX state split by Schedule CA column;
+   - carryovers in, used and out;
+   - basis by year;
+   - prior preparer vs us.
+2. Each record states its tie-out (what must equal what) and shows a red mark if it does not tie.
+3. Quiet tables in tabular figures; exceptions first, detail one click away (lot rollups expand per broker).
+
+### Screen plan: Firm
+4. For each area: open items, verified, sign-off level, assigned person, budget hours vs logged, variance.
+   - Deadlines with days left.
+   - Log time (staff) and reassign (firm administrator or partner) as events.
+5. The view log: every unmasked view and refusal (who, role, what, when). Firm administrator and partner only.
+   - Search (⌘K) also covers notes and reasons people wrote.
+
+### Phase 5 outcome
+- **Ten records under "Records"**, computed from the packet plus live adjustments. Every amount links to its line's proof thread, and each record states its tie-out with a mark:
+  - **Depreciation:** asset totals equal the Form 4562 lines, per activity.
+  - **Sales:** each broker's summary proceeds equal the lots on the return. D74 and D34 tie; D31 shows 250 missing, which is the unextracted M18 lot, in red.
+  - **Books to tax:** QuickBooks net income 89,834 plus eight reconciling items equals Schedule C line 31 (81,854) exactly. Adjustments to Schedule C are shown below that tie, by audit finding, as an estimate. They are not mixed into it, because line 31 is not recomputed.
+  - **Rentals:** income or loss = rents minus expenses, per property. Suspended losses released.
+  - **K-1s:** every box and the line it landed on.
+  - **State split:** Schedule CA columns A to E, the 540NR proration, and the California errors still open.
+  - **Carryovers:** in, used and out.
+  - **Basis:** S corporation stock basis 2022 to 2025, closing the 2023 gap with D40; the Ridgeline capital account; IRA basis; home basis.
+  - **Prior preparer vs us:** each of their notes and open items against our handling.
+- **Firm view.** For each budget area (from `firm.budget_hours`, mapped to outline areas): preparer, open items, verified, sign-off level, budget vs logged hours, and overruns in red. Also deadlines with days left, logging time (`time_logged`, staff), reassigning (`assigned`, firm administrator or partner), and the view log.
+- **View log visibility is enforced on the server.** `sensitive_view*` events go only to the firm administrator and the partner (others see their own), so a preparer's browser never receives who else unmasked what.
+- **Search** covers what people wrote: notes, reasons, review notes and client answers. These rank ahead of raw packet text and open the line they were written on.
+- **Mid-season scenario** now also has Marcus assigned to investments (he joined 2026-03-24), hours by area (investments over budget), and two view-log entries, one of them Marcus's refused unmask.
+- **Checks:** `node scripts/e2e-phase5.ts` (19 checks).

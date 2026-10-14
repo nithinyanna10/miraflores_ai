@@ -465,3 +465,37 @@ button.hop-body:hover { border-color: var(--ink-3); }
 .ties table { margin-top: 6px; max-width: 640px; }
 .timeline-list .override-log li { display: block; }
 .override-log li > .label { display: block; font-size: 13px; }
+
+/* ---------- records and firm (Phase 5) ---------- */
+.records { display: grid; grid-template-columns: 220px 1fr; gap: 28px; align-items: start; }
+.records-nav { display: grid; gap: 2px; position: sticky; top: 0; }
+.records-nav h1 { font-size: 24px; font-weight: 600; margin-bottom: 10px; }
+.records-nav button { padding: 6px 10px; border-radius: 3px; color: var(--ink-2); }
+.records-nav button:hover { background: var(--desk); color: var(--ink); }
+.records-nav button[aria-current='true'] { background: var(--desk); color: var(--ink); box-shadow: inset 3px 0 0 var(--ink); }
+.record-body { display: grid; gap: 14px; min-width: 0; }
+.record-body h2 { font-size: 18px; font-weight: 600; }
+.record-body h3 { font-size: 15px; font-weight: 600; margin-top: 8px; }
+.record-body .ledger { font-size: 13px; }
+.record-body .ledger th, .record-body .ledger td { padding: 5px 8px 5px 0; vertical-align: baseline; }
+.record-body .ledger thead th { white-space: nowrap; }
+.record-group { display: grid; gap: 6px; }
+.link-num { color: var(--ink); text-decoration: underline 1px var(--rule); text-underline-offset: 3px; }
+.link-num:hover { text-decoration-color: var(--ink); }
+.tie { display: flex; gap: 8px; align-items: baseline; }
+.tie.no { color: var(--red); }
+.rollup th button { font-weight: 600; text-align: left; }
+.lot th { padding-left: 16px !important; font-weight: 400; }
+.small-memo { font-size: 13px; }
+.firm { max-width: 980px; display: grid; gap: 28px; }
+.firm h1 { font-size: 24px; font-weight: 600; }
+.firm h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.firm .ledger th, .firm .ledger td { padding: 5px 10px 5px 0; }
+.firm select { font: inherit; border: 1px solid var(--rule); border-radius: 3px; padding: 4px 6px; background: var(--panel); }
+.adjusted-note { display: flex; gap: 8px; align-items: baseline; }
+
+.records { grid-template-columns: 180px minmax(0, 1fr); gap: 24px; }
+.record-body { overflow-x: auto; }
+.record-body .ledger td.num, .record-body .ledger th.num, .nowrap { white-space: nowrap; }
+.record-body .method { min-width: 120px; max-width: 180px; }
+.firm .ledger td:nth-child(2), .firm .ledger td:nth-child(5) { white-space: nowrap; }
