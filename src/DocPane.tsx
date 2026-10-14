@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { fmt, isLot, labelMaker, type Graph, type RefNode } from '../shared/packet.ts';
 import { StatusMark } from './StatusMark.tsx';
-import type { Workpaper } from './data.ts';
+import { reveal, type Workpaper } from './data.ts';
+import { useSession } from './Actions.tsx';
+import { isActive } from '../shared/policy.ts';
 
 // Right pane: the source. A facsimile (from DocumentSource) for fields, pages and documents;
 // otherwise the record itself (questionnaire answer, message, prior-year value).
 export function DocPane({ g, w, refStr, onLine, onSrc, hint }: { g: Graph; w: Workpaper; refStr?: string; onLine: (k: string, src?: string) => void; onSrc: (r: string) => void; hint?: string }) {
   const box = useRef<HTMLElement>(null);
+  const { me, people } = useSession();
+  const [plain, setPlain] = useState<Record<string, string>>({});
+  const [revealErr, setRevealErr] = useState<string | null>(null);
+  useEffect(() => { setPlain({}); setRevealErr(null); }, [refStr, me?.id]);
   const n: RefNode | null = refStr ? g.resolve(refStr) : null;
   const docId = n?.docId;
   const hl = n?.ev ? w.source!.highlight(n.ev) : null;
@@ -44,10 +50,22 @@ export function DocPane({ g, w, refStr, onLine, onSrc, hint }: { g: Graph; w: Wo
       <div className="pages">
         {pages.map(p => {
           const mark = hl && hl.page === p.page && hl.span;
+          const pageRef = `doc:${docId}#page${p.page}`;
+          const text = plain[pageRef] ?? p.text; // masking keeps length, so marks still line up
+          const masked = p.text.includes('•');
+          const mayReveal = me && (me.role === 'client' || (me.sensitive_data_clearance && isActive(me)));
           return (
             <section key={p.page} className="sheet facsimile" data-page={p.page} aria-label={`Page ${p.page}`}>
               {pages.length > 1 && <p className="page-no">Page {p.page} of {pages.length}</p>}
-              <p className="printed">{mark ? <>{p.text.slice(0, mark.start)}<mark className={mark.approx ? 'approx' : ''}>{p.text.slice(mark.start, mark.end)}</mark>{p.text.slice(mark.end)}</> : p.text}</p>
+              {masked && !plain[pageRef] && (
+                <p className="mask-bar">
+                  {mayReveal
+                    ? <button className="link" onClick={async () => { const r = await reveal(me!.id, pageRef); r.error ? setRevealErr(r.error) : setPlain({ ...plain, [pageRef]: r.value }); }}>Show the masked numbers on this page. Your view is logged.</button>
+                    : <span>SSNs and account numbers are masked: {me?.name ?? 'this user'} does not have sensitive-data clearance.</span>}
+                  {revealErr && <span className="warn"> {revealErr}</span>}
+                </p>
+              )}
+              <p className="printed">{mark ? <>{text.slice(0, mark.start)}<mark className={mark.approx ? 'approx' : ''}>{text.slice(mark.start, mark.end)}</mark>{text.slice(mark.end)}</> : text}</p>
             </section>
           );
         })}
@@ -58,6 +76,12 @@ export function DocPane({ g, w, refStr, onLine, onSrc, hint }: { g: Graph; w: Wo
           return <li key={f.id}><button onClick={() => k && onLine(k)} disabled={!k}><StatusMark status={f.severity === 'error' ? 'Blocked' : 'Question open'} /> <span>{f.title}</span></button></li>;
         })}</ul></section>}
         {n.ev && <section><h3>This field is used on</h3>{fieldLands.length ? <Lands g={g} w={w} keys={fieldLands} onLine={k => onLine(k, n.ev!.id)} /> : <p className="muted">No line.</p>}</section>}
+        {(() => {
+          const views = w.events.filter(e => (e.type === 'sensitive_viewed' || e.type === 'sensitive_view_refused') && e.refs.some(r => r.startsWith(`doc:${docId}#`) || g.evs[r]?.document_id === docId));
+          return views.length > 0 && <section><h3>Unmasked views of this document</h3><ul className="view-log">{views.map(e => (
+            <li key={e.seq} className={e.type === 'sensitive_view_refused' ? 'warn' : ''}>{people.find(p => p.id === e.actor)?.name ?? e.actor}, {new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{e.type === 'sensitive_view_refused' ? ': refused, no clearance' : ''}</li>
+          ))}</ul></section>;
+        })()}
         <section><h3>This document lands on</h3>{docLands.length ? <Lands g={g} w={w} keys={docLands} onLine={k => onLine(k)} /> : <p className={reason.explained ? 'muted' : 'warn'}>{reason.text}</p>}</section>
       </footer>
     </aside>

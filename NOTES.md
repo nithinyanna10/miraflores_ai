@@ -58,3 +58,23 @@ Stack decisions:
 - **Home:** federal and California summary with 2024, 2025 and change columns. The top 5 blockers by tax effect, then "Show all". The right pane is the document index; a document with no landing and no recorded reason is red.
 - **Proof thread:** steps grouped into stages (Computed by / Built from / Read from / Cited but not used). Clean fields from one page collapse into one step. A connector runs from the selected step to the page margin beside the marked text: red when the step is broken, dashed when the mark is scrolled out of view, hidden in the stacked tablet layout.
 - **Landings:** prior-year refs (`py:`, `asset:`) now count as landings on D06/D07, matching the audit.
+
+## Phase 2: roles, masking, review layer
+
+- **One policy file (`shared/policy.ts`).** It maps each event type to the roles allowed to create it, plus the stateful firm rules. The server runs `refuse()` on every write and returns the reason in plain words: "You prepared part of Business, so someone else must sign off on it as reviewer." The client imports the same `can()` only to hide buttons. There is no auth system: the role switcher sends `x-user` (per the brief).
+- **Staff `active_from` is enforced.** The quality reviewer (starts 2027-01-04) cannot act yet.
+- **Masking is server-side and total.** The packet, the findings, the event payloads and the SSE stream all pass through one masker, so a client never receives a raw SSN unless it asks.
+  - Covered: SSNs (by value and by shape), IP PIN, bank routing and account, the IBAN, and the 8879 e-file PINs in timeline text. Last 4 digits stay visible.
+  - Masking keeps string length, so highlight offsets still line up after unmasking.
+  - `node server/mask.ts` asserts the cases.
+- **Unmasking is a separate request** (`POST /api/reveal`). Staff need clearance and must be active; clients may see their own household's data. Every request is logged as an event, refusals included, and shows on the document as "Unmasked views". The firm admin's view-log screen (Phase 5) reads the same events.
+- **Verification.** A verification records the method (from `starter_standards.verification_types`) and the value it saw. If the line's value later differs, it shows Reopened. Keys: v verifies, n adds a note.
+- **Review notes** block filing (they add to the header count and lead Home's blocker list). Only the author or the partner can clear one; anyone on staff can reply.
+- **Sign-offs** are per area (or the whole return), preparer, then reviewer, then partner.
+  - Each stores a hash of the area's line keys, values, source refs and evidence events (verifications, resolutions, adjustments).
+  - Any later change shows the sign-off as Reopened, at every level.
+  - A sign-off whose hash no longer matches the server's is refused ("The work changed while you were signing").
+  - The hash covers source refs, not source values: the packet is immutable, and masked and unmasked copies must hash the same.
+- **Open items** can be resolved by a reviewer or the partner, with a written reason.
+- **Checks:** `node scripts/e2e-phase2.ts` (12 assertions; needs a fresh DB and the dev stack running).
+- **Not yet:** file attachments as evidence, and a client-facing view that hides internal review notes from clients. Today clients can read everything except unmasked data and cannot write anything but notes.

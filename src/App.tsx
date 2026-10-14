@@ -6,6 +6,8 @@ import { Thread } from './Thread.tsx';
 import { DocPane } from './DocPane.tsx';
 import { Palette } from './Palette.tsx';
 import { StatusMark } from './StatusMark.tsx';
+import { Session, SignoffPanel, type Form } from './Actions.tsx';
+import { can } from '../shared/policy.ts';
 
 type Sel = { line?: string; src?: string };
 const readHash = (): Sel => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
@@ -22,6 +24,8 @@ export function App() {
   const [openAreas, setOpenAreas] = useState<Set<string>>(new Set());
   const [showWs, setShowWs] = useState<Set<string>>(new Set());
   const [palette, setPalette] = useState(false);
+  const [form, setForm] = useState<Form>(null);
+  useEffect(() => setForm(null), [sel.line]);
   const [user, setUser] = useState(() => { try { return localStorage.getItem('user') ?? 'st-02'; } catch { return 'st-02'; } });
   useEffect(() => { const f = () => setSel(readHash()); addEventListener('popstate', f); return () => removeEventListener('popstate', f); }, []);
   useEffect(() => { try { localStorage.setItem('user', user); } catch {} }, [user]);
@@ -30,6 +34,8 @@ export function App() {
   const areas = useMemo(() => (g && w.byLine ? buildAreas(g, w) : []), [g, w.byLine, w.verified]);
   const rows = visibleRows(areas, openAreas, showWs);
 
+  const people = g ? [...g.P.firm.staff, ...g.P.firm.client_users] : [];
+  const me = people.find((p: any) => p.id === user);
   const go = (s: Sel) => { setSel(s); writeHash(s); };
   const openLine = (k: string, src?: string) => {
     if (!g) return;
@@ -57,25 +63,28 @@ export function App() {
       if (e.key === 'j') setCursorKey(rows[Math.min(rows.length - 1, i + 1)]?.key);
       else if (e.key === 'k') setCursorKey(rows[Math.max(0, i - 1)]?.key);
       else if (e.key === 'Enter' && t === document.body && cursorKey) openLine(cursorKey);
-      else if (e.key === 'Escape') go({});
+      else if (e.key === 'Escape') { if (form) setForm(null); else go({}); }
+      else if (e.key === 'v' && sel.line && can(me, 'verified')) { e.preventDefault(); setForm('verify'); }
+      else if (e.key === 'n' && sel.line && can(me, 'note')) { e.preventDefault(); setForm('note'); }
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, [rows, cursorKey, palette, g]);
+  }, [rows, cursorKey, palette, g, form, sel.line, user]);
 
   if (!g || !w.byLine) return <div className="loading">Loading the 2025 return…</div>;
-  const people = [...g.P.firm.staff, ...g.P.firm.client_users];
+  const blockingCount = w.blocking!.length + w.openNotes!.length;
 
   return (
+    <Session.Provider value={{ me, people }}>
     <div className="app">
       <header className="topbar">
         <button className="client" onClick={() => go({})} title="Back to the return">Okafor-Lindqvist 2025</button>
         <span className="version" title={g.P.return_versions.at(-1).trigger}>Return v3</span>
-        <button className="blocking" onClick={() => go({})}><StatusMark status="Blocked" /> {w.blocking!.length} blocking filing</button>
+        <button className="blocking" onClick={() => go({})}><StatusMark status="Blocked" /> {blockingCount} blocking filing</button>
         <button className="search" onClick={() => setPalette(true)}>Search <kbd>⌘K</kbd></button>
         <label className="role"><span className="sr">Working as</span>
           <select value={user} onChange={e => setUser(e.target.value)} aria-label="Working as">
-            {people.map((p: any) => <option key={p.id} value={p.id}>{p.name}, {p.role.replace(/_/g, ' ')}</option>)}
+            {people.map((p: any) => <option key={p.id} value={p.id}>{p.name}, {p.role.replace(/_/g, ' ')}{p.role !== 'client' && !p.sensitive_data_clearance ? ', no clearance' : ''}</option>)}
           </select>
         </label>
         <span className={`live${w.live ? ' on' : ''}`} title={w.live ? 'Changes from colleagues appear as they happen' : 'Not connected; changes from others appear on reload'}>{w.live ? 'Live' : 'Offline'}</span>
@@ -86,7 +95,7 @@ export function App() {
           selected={sel.line} cursorKey={cursorKey} onSelect={k => openLine(k)} />
         <section className="middle" aria-live="polite">
           {sel.line && g.line(sel.line)
-            ? <Thread g={g} w={w} lineKey={sel.line} src={sel.src} onLine={openLine} onSrc={src => go({ ...sel, src })} />
+            ? <Thread g={g} w={w} lineKey={sel.line} src={sel.src} onLine={openLine} onSrc={src => go({ ...sel, src })} form={form} setForm={setForm} />
             : <Home g={g} w={w} onFinding={f => openFinding(g, f, openLine, src => go({ src }))} onLine={k => openLine(k)} />}
         </section>
         <DocPane g={g} w={w} refStr={sel.src} onLine={openLine} onSrc={src => go({ ...sel, src })}
@@ -100,6 +109,7 @@ export function App() {
         else go({ ...sel, src: ref });
       }} />}
     </div>
+    </Session.Provider>
   );
 }
 
@@ -163,6 +173,7 @@ function Home({ g, w, onFinding, onLine }: { g: Graph; w: Workpaper; onFinding: 
   const [allBlock, setAllBlock] = useState(false);
   const [allQ, setAllQ] = useState(false);
   const blockers = [...w.blocking!].sort((a, b) => effectSize(b) - effectSize(a));
+  const notes = w.openNotes!;
   const questions = w.findings!.filter(f => f.severity === 'judgment' || (f.severity === 'warning' && f.check !== 'prior_year_variance')).sort((a, b) => effectSize(b) - effectSize(a));
   const swings = w.findings!.filter(f => f.check === 'prior_year_variance');
   const item = (f: Finding) => {
@@ -201,15 +212,22 @@ function Home({ g, w, onFinding, onLine }: { g: Graph; w: Workpaper; onFinding: 
         {ledger('California', '2024 (Form 540)', ca)}
       </section>
       <section className="items">
-        <h2><StatusMark status="Blocked" size={14} /> {blockers.length} items block filing</h2>
+        <h2><StatusMark status="Blocked" size={14} /> {blockers.length + notes.length} items block filing</h2>
         <p className="muted">Largest tax effect first. Effect is federal / California, change times the v3 rate.</p>
-        <ul className="item-list">{(allBlock ? blockers : blockers.slice(0, 5)).map(item)}</ul>
+        <ul className="item-list">
+          {notes.map(n => <li key={n.open.seq}><button onClick={() => onLine(n.open.refs[0])}><StatusMark status="Blocked" /><span className="item-title"><span className="memo">{n.open.payload.text}</span><span className="item-where">Review note on {L[n.open.refs[0]] ? label(L[n.open.refs[0]]) : n.open.refs[0]}</span></span><span /></button></li>)}
+          {(allBlock ? blockers : blockers.slice(0, 5)).map(item)}
+        </ul>
         {blockers.length > 5 && <button className="more" onClick={() => setAllBlock(!allBlock)}>{allBlock ? 'Show the top 5' : `Show all ${blockers.length}`}</button>}
       </section>
       <section className="items">
         <h2><StatusMark status="Question open" size={14} /> {questions.length} questions and judgment calls</h2>
         <ul className="item-list">{(allQ ? questions : questions.slice(0, 5)).map(item)}</ul>
         {questions.length > 5 && <button className="more" onClick={() => setAllQ(!allQ)}>{allQ ? 'Show the top 5' : `Show all ${questions.length}`}</button>}
+      </section>
+      <section className="items">
+        <h2>Sign-off on the whole return</h2>
+        <SignoffPanel g={g} w={w} scope="area:Whole return" />
       </section>
       <details className="items">
         <summary>{swings.length} changes from 2024 over the firm threshold need an explanation</summary>

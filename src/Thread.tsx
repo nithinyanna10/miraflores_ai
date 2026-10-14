@@ -3,8 +3,9 @@ import { breakHop, fmt, formName, isLot, labelMaker, locate, severityStatus, typ
 import { StatusMark } from './StatusMark.tsx';
 import { lotLabel } from './Outline.tsx';
 import type { Workpaper } from './data.ts';
+import { LineActions, ReviewNotes, ResolveFinding, METHODS, type Form } from './Actions.tsx';
 
-type Props = { g: Graph; w: Workpaper; lineKey: string; src?: string; onLine: (k: string, src?: string) => void; onSrc: (ref: string) => void };
+type Props = { g: Graph; w: Workpaper; lineKey: string; src?: string; onLine: (k: string, src?: string) => void; onSrc: (ref: string) => void; form: Form; setForm: (f: Form) => void };
 
 const signed = (n: number) => (n === 0 ? 'no change' : `${n > 0 ? '+' : '−'}${Math.abs(n).toLocaleString('en-US')}`);
 
@@ -19,6 +20,7 @@ export function FindingCard({ f }: { f: Finding }) {
       {f.tax_effect && <p className="finding-line" title={f.tax_effect.basis}><span className="label">{f.tax_effect.kind === 'balance_due' ? 'Balance due' : 'Tax'}</span> federal {signed(f.tax_effect.federal)}, California {signed(f.tax_effect.california)}</p>}
       {f.detail && <button className="why" aria-expanded={why} onClick={e => { e.stopPropagation(); setWhy(!why); }}>{why ? 'Hide the reasoning' : 'Show the reasoning'}</button>}
       {why && <p className="memo why-text">{f.detail} <span className="ref">{f.id}</span></p>}
+      <ResolveFinding f={f} />
     </div>
   );
 }
@@ -36,7 +38,7 @@ function Hop({ id, status, affected, broken, dashed, children, active, onClick, 
 
 const Stage = ({ children }: { children: React.ReactNode }) => <li className="stage"><span className="hop-seg" aria-hidden /><span className="stage-label">{children}</span></li>;
 
-export function Thread({ g, w, lineKey, src, onLine, onSrc }: Props) {
+export function Thread({ g, w, lineKey, src, onLine, onSrc, form, setForm }: Props) {
   const l = g.line(lineKey)!;
   const label = labelMaker(Object.values(g.lines.v3));
   const fs = w.byLine![lineKey] ?? [];
@@ -56,26 +58,27 @@ export function Thread({ g, w, lineKey, src, onLine, onSrc }: Props) {
     return [...seen];
   }, [lineKey, fs]);
   const usedBy = g.usedBy.v3[lineKey] ?? [];
-  const history = w.events.filter(e => e.refs.includes(lineKey) && e.type !== 'finding_opened');
+  const history = w.events.filter(e => e.refs.includes(lineKey) && !['finding_opened', 'review_note_opened', 'review_note_replied', 'review_note_cleared'].includes(e.type));
   const root = useRef<HTMLElement>(null);
   useEffect(() => { root.current?.querySelector('.hop.is-broken')?.scrollIntoView({ block: 'nearest' }); }, [lineKey]);
   const breakHops = Object.keys(breaks).filter(h => h !== 'line');
-  const isVer = w.verified!.has(lineKey);
 
   return (
     <article className="thread" key={lineKey} ref={root}>
       <header className="thread-head">
         <p className="thread-key">{isLot(l.key) ? `Form 8949, box ${l.line.split('.')[0]}, lot ${l.line.split('.')[1]}` : `${formName(l.form)} line ${l.line}`}</p>
         <h1><span className="num big">{fmt(l.value, isLot(l.key))}</span> <span className="thread-label">{isLot(l.key) ? lotLabel(l) : label(l)}</span></h1>
-        <p className="thread-status">
+        {!(w.verification![lineKey] && (own === 'Verified' || own === 'Reopened')) && <p className="thread-status">
           {own !== 'Unverified'
             ? <><StatusMark status={own} /> {own}{breakHops.length > 0 && <>, breaks at {breakHops.map((h, j) => (
               <span key={h}>{j ? ', ' : ''}<button className="jump" onClick={() => { document.getElementById(`hop-${h}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); if (h !== 'rule') onSrc(h); }}>{h === 'rule' ? 'the rule' : g.resolve(h).title}</button></span>
             ))}</>}</>
-            : <><StatusMark status={isVer ? 'Verified' : 'Unverified'} /> {isVer ? 'Verified' : 'Unverified'}</>}
+            : <><StatusMark status={own} /> {own}</>}
           {affected > 0 && <span className="muted">. {own !== 'Unverified' ? 'Also affected' : 'Affected'} by {affected} open {affected === 1 ? 'item' : 'items'} upstream</span>}
-        </p>
+        </p>}
+        <ReviewNotes notes={w.notesByLine![lineKey] ?? []} />
         {breaks.line?.map(f => <FindingCard key={f.id} f={f} />)}
+        <LineActions g={g} w={w} lineKey={lineKey} form={form} setForm={setForm} />
       </header>
 
       <ol className="hops" aria-label="Proof thread">
@@ -199,5 +202,10 @@ function InputHops({ g, w, l, onLine, label }: { g: Graph; w: Workpaper; l: Line
 function describe(e: { type: string; actor: string; at: string; payload: any }, g: Graph) {
   const who = [...g.P.firm.staff, ...g.P.firm.client_users].find((p: any) => p.id === e.actor)?.name ?? e.actor;
   const when = new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  return <>{who}, {when}: {e.payload?.text ?? e.type.replace(/_/g, ' ')}</>;
+  const what: Record<string, string> = {
+    verified: `verified, ${(METHODS[e.payload?.method] ?? '').toLowerCase()}${e.payload?.note ? `: ${e.payload.note}` : ''}`,
+    verification_withdrawn: 'withdrew the verification', note: e.payload?.text, finding_resolved: `resolved ${e.payload?.id}: ${e.payload?.text}`,
+    finding_reopened: `reopened ${e.payload?.id}`, sensitive_viewed: 'viewed unmasked data',
+  };
+  return <>{who}, {when}: {what[e.type] ?? e.type.replace(/_/g, ' ')}</>;
 }

@@ -222,3 +222,36 @@ button.hop-body:hover { border-color: var(--ink-3); }
 .palette li { display: grid; grid-template-columns: 110px 1fr auto; gap: 12px; align-items: baseline; padding: 6px 16px; cursor: pointer; }
 .palette li.is-active { background: var(--paper); box-shadow: inset 3px 0 0 var(--ink); }
 .palette-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- actions (Phase 2) ---------- */
+.btn { border: 1px solid var(--ink); background: var(--ink); color: var(--sheet); border-radius: 3px; padding: 5px 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.btn kbd { color: var(--rule); border-color: var(--ink-2); margin-left: 4px; }
+.btn.quiet { background: var(--sheet); color: var(--ink); border-color: var(--rule); font-weight: 400; }
+.btn.quiet kbd { color: var(--ink-2); border-color: var(--rule); }
+.btn:disabled { opacity: .5; }
+.link { color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; margin-left: 8px; }
+.line-actions { margin-top: 14px; display: grid; gap: 10px; }
+.action-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.action-row input { flex: 1; min-width: 160px; font: inherit; border: 1px solid var(--rule); border-radius: 3px; padding: 5px 8px; background: var(--sheet); }
+.action-form { display: grid; gap: 10px; padding: 12px; background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--ink); max-width: 560px; }
+.action-form label { display: grid; gap: 4px; color: var(--ink-2); }
+.action-form select, .action-form textarea { font: 15px var(--sans); color: var(--ink); border: 1px solid var(--rule); border-radius: 3px; padding: 6px 8px; background: var(--sheet); }
+.action-form textarea { font-family: var(--serif); resize: vertical; }
+.verification { line-height: 1.6; }
+.verification .mark { margin-right: 4px; }
+.review-notes { display: grid; gap: 10px; margin-top: 12px; }
+.review-note { padding: 10px 12px; background: var(--sheet); border-left: 3px solid var(--red); }
+.review-note.is-cleared { border-left-color: var(--teal); }
+.review-note .action-row { margin-top: 8px; padding-left: 20px; }
+.note-text, .note-reply { margin-top: 4px; padding-left: 20px; }
+.signoffs { display: grid; gap: 4px; padding: 10px 16px 6px; border-top: 1px dashed var(--rule); margin-top: 8px; }
+.home .signoffs { padding: 8px 0; border-top: 1px solid var(--rule); }
+.signoff-row { display: grid; grid-template-columns: 14px 64px 1fr; gap: 2px 8px; align-items: baseline; }
+.signoff-row .btn, .signoff-row .link { grid-column: 3; justify-self: start; margin: 2px 0 4px; }
+.signoff-row .btn { padding: 2px 8px; font-size: 12px; }
+.signoff-level { color: var(--ink-2); font-size: 12px; }
+.signoff-row .reopened { color: var(--amber); }
+.mark-reopened circle { fill: none; stroke: var(--amber); stroke-width: 2; stroke-dasharray: 3 2; }
+.mark-signed circle { fill: var(--teal); stroke: var(--teal); }
+.mask-bar { font-size: 13px; color: var(--ink-2); padding: 6px 10px; margin: -12px -16px 14px; background: var(--paper); border: 1px dashed var(--rule); }
+.view-log { margin: 0; padding-left: 18px; }

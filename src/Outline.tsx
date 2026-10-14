@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { AREAS, areaOf, fmt, isLot, isWorksheet, labelMaker, type Line, type Graph } from '../shared/packet.ts';
 import { StatusMark } from './StatusMark.tsx';
 import type { Workpaper } from './data.ts';
+import { SignoffPanel } from './Actions.tsx';
 
 export const BOX_NAMES: Record<string, string> = {
   A: 'Short-term, basis reported', B: 'Short-term, basis not reported', D: 'Long-term, basis reported',
@@ -48,7 +49,7 @@ export function Outline({ g, w, areas, open, showWs, toggle, toggleWs, selected,
     const box = l.key.match(/^F8949\.([A-Z])\.total$/)?.[1];
     return (
       <button key={r.key} className={`outline-row depth-${r.depth}${selected === r.key ? ' is-selected' : ''}`} data-cursor={cursorKey === r.key} onClick={() => onSelect(r.key)}>
-        {own !== 'Unverified' ? <StatusMark status={own} /> : affected ? <span className="affected" title={`Affected by ${affected} open ${affected === 1 ? 'item' : 'items'} upstream`} /> : <StatusMark status={w.verified!.has(r.key) ? 'Verified' : 'Unverified'} />}
+        {own !== 'Unverified' ? <StatusMark status={own} /> : affected ? <span className="affected" title={`Affected by ${affected} open ${affected === 1 ? 'item' : 'items'} upstream`} /> : <StatusMark status="Unverified" />}
         <span className="outline-label">{box ? <>Form 8949 box {box}, {BOX_NAMES[box].toLowerCase()}<span className="muted"> ({l.inputs.length} {l.inputs.length === 1 ? 'sale' : 'sales'})</span></> : r.depth ? lotLabel(l) : label(l)}</span>
         <span className="num">{fmt(l.value, isLot(l.key))}</span>
       </button>
@@ -69,6 +70,7 @@ export function Outline({ g, w, areas, open, showWs, toggle, toggleWs, selected,
               {a.rows.map(row)}
               {a.worksheet.length > 0 && <button className="ws-toggle" onClick={() => toggleWs(a.area)}>{showWs.has(a.area) ? 'Hide worksheet lines' : `Show worksheet lines (${a.worksheet.length})`}</button>}
               {showWs.has(a.area) && <div className="worksheet">{a.worksheet.map(row)}</div>}
+              <SignoffPanel g={g} w={w} scope={`area:${a.area}`} />
             </div>
           )}
         </section>
