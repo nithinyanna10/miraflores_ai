@@ -9,24 +9,23 @@ export async function post(user: string, type: string, refs: string[], payload: 
   const r = await fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': user }, body: JSON.stringify({ type, refs, payload }) });
   return r.ok ? null : (await r.json().catch(() => ({ error: 'The server refused.' }))).error;
 }
-export async function reveal(user: string, ref: string): Promise<{ value?: any; error?: string }> {
-  const r = await fetch('/api/reveal', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': user }, body: JSON.stringify({ ref }) });
-  return r.json();
+export async function attach(user: string, file: File, refs: string[], opts: { note?: string; question?: number; share?: boolean } = {}): Promise<{ error?: string; id?: string }> {
+  const q = new URLSearchParams({ refs: refs.join(','), name: file.name, ...(opts.note ? { note: opts.note } : {}), ...(opts.question ? { question: String(opts.question) } : {}), ...(opts.share ? { share: '1' } : {}) });
+  const r = await fetch(`/api/attachments?${q}`, { method: 'POST', headers: { 'x-user': user, 'content-type': file.type || 'application/octet-stream' }, body: file });
+  const body = await r.json().catch(() => ({ error: 'Upload failed.' }));
+  return r.ok ? { id: body.payload.id } : { error: body.error };
 }
+export const attachmentUrl = (user: string, id: string) => `/api/attachments/${id}?user=${encodeURIComponent(user)}`;
 
-export function useWorkpaper() {
-  const [g, setG] = useState<Graph | null>(null);
+// The event log as this user may see it, kept live over SSE.
+export function useEvents(user: string) {
   const [events, setEvents] = useState<WEvent[]>([]);
   const [live, setLive] = useState(false);
-  const [audit, setAudit] = useState<{ findings: Finding[] } | null>(null);
-
   useEffect(() => {
-    fetch('/api/packet').then(r => r.json()).then(P => setG(new Graph(P)));
-    fetch('/api/findings').then(r => r.json()).then(setAudit);
-    let last = 0;
-    fetch('/api/events').then(r => r.json()).then((es: WEvent[]) => {
+    let last = 0, src: EventSource | null = null;
+    fetch('/api/events', { headers: { 'x-user': user } }).then(r => r.json()).then((es: WEvent[]) => {
       setEvents(es); last = es.at(-1)?.seq ?? 0;
-      const src = new EventSource('/api/stream');
+      src = new EventSource(`/api/stream?user=${encodeURIComponent(user)}`);
       src.onopen = () => setLive(true);
       src.onerror = () => setLive(false);
       src.onmessage = m => {
@@ -34,13 +33,34 @@ export function useWorkpaper() {
         if (e.seq > last) { last = e.seq; setEvents(prev => [...prev, e]); }
       };
     });
-  }, []);
+    return () => src?.close();
+  }, [user]);
+  return { events, live };
+}
+
+export async function reveal(user: string, ref: string): Promise<{ value?: any; error?: string }> {
+  const r = await fetch('/api/reveal', { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': user }, body: JSON.stringify({ ref }) });
+  return r.json();
+}
+
+export function useWorkpaper(user: string) {
+  const [g, setG] = useState<Graph | null>(null);
+  const [audit, setAudit] = useState<{ findings: Finding[] } | null>(null);
+  const { events, live } = useEvents(user);
+  useEffect(() => {
+    fetch('/api/packet', { headers: { 'x-user': user } }).then(r => r.json()).then(P => setG(new Graph(P)));
+    fetch('/api/findings', { headers: { 'x-user': user } }).then(r => r.json()).then(setAudit);
+  }, [user]);
 
   const derived = useMemo(() => (g ? derive(g, events) : null), [g, events]);
   return { g, events, live, audit, ...derived };
 }
 
 export type ReviewNote = { open: WEvent; replies: WEvent[]; cleared?: WEvent };
+export type Question = { q: WEvent; answers: WEvent[] };
+export function questionsOf(events: WEvent[]): Question[] {
+  return events.filter(e => e.type === 'client_question').map(q => ({ q, answers: events.filter(e => e.type === 'client_answer' && e.payload.question === q.seq) }));
+}
 
 function derive(g: Graph, events: WEvent[]) {
   const L = g.lines.v3;
@@ -111,10 +131,16 @@ function derive(g: Graph, events: WEvent[]) {
   const affMemo: Record<string, number> = {};
   const affectedBy = (k: string) => (affMemo[k] ??= new Set([...upstream(k)].flatMap(u => (byLine[u] ?? []).filter(f => f.check !== 'prior_year_variance').map(f => f.id))).size);
   const signoffs = currentSignoffs(events, g);
+  const attachments = events.filter(e => e.type === 'evidence_attached');
+  const attachmentsByRef: Record<string, WEvent[]> = {};
+  for (const a of attachments) for (const r of a.refs) (attachmentsByRef[r] ??= []).push(a);
+  const questions = questionsOf(events);
+  const questionsByRef: Record<string, Question[]> = {};
+  for (const q of questions) for (const r of q.q.refs) (questionsByRef[r] ??= []).push(q);
   const source = new SimulatedSource(g);
   return {
     findings, allFindings, resolution, byLine, unplaced, own, inherited, affectedBy, upstream, blocking,
-    notes, openNotes, notesByLine, verification, verified, signoffs, source, lotKeys: Object.keys(L).filter(isLot),
+    notes, openNotes, notesByLine, verification, verified, signoffs, attachments, attachmentsByRef, questions, questionsByRef, source, lotKeys: Object.keys(L).filter(isLot),
   };
 }
 

@@ -1,10 +1,10 @@
-// End-to-end check of Phase 2 flows against a running dev stack. Usage: node scripts/e2e-phase2.ts
+// End-to-end check of Phase 2 flows. Usage: node scripts/e2e-phase2.ts [baseUrl]  (default: the local dev stack)
 // Expects a fresh database (it asserts on counts).
 import { chromium, type Page } from 'playwright';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 
-const base = 'http://localhost:5173';
+const base = process.argv[2] ?? 'http://localhost:5173';
 const local = `${homedir()}/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
 const browser = await chromium.launch(existsSync(local) ? { executablePath: local } : {});
 const ok = (v: unknown, m: string) => { if (!v) throw new Error('FAIL: ' + m); console.log('ok:', m); };
@@ -15,7 +15,7 @@ async function as(user: string, hash: string): Promise<Page> {
   p.on('pageerror', e => errors.push(e.message));
   await p.addInitScript(u => localStorage.setItem('user', u), user);
   await p.goto(`${base}/${hash}`);
-  await p.waitForSelector('.outline-area');
+  await p.waitForSelector('.outline-area, .client-col');
   await p.waitForTimeout(300);
   return p;
 }
@@ -82,6 +82,53 @@ await p.close();
 p = await as('st-03', '');
 await p.screenshot({ path: 'shots/p2-home.png' });
 ok(await p.locator('.item-list li').first().innerText().then(t => t.includes('Tie gross receipts')), 'review note leads the blocking list');
+await p.close();
+
+// 8. Preparer attaches a file and sends the client a question about the crypto lot with no basis
+p = await as('st-01', '#line=F8949.H.C6');
+await p.click('text=Attach a file');
+await p.setInputFiles('.action-form input[type=file]', { name: 'coinhaven-basis-workpaper.txt', mimeType: 'text/plain', buffer: Buffer.from('Lot C6: transfer-in 2025-06-01. Client says bought 03/15/2021 for 3,050 on CryptoNorth.') });
+await p.fill('.action-form textarea', 'Our notes on lot C6 before asking the client.');
+await p.click('text=Attach as evidence');
+await p.waitForSelector('.hop:has-text("coinhaven-basis-workpaper.txt")');
+ok(true, 'staff attachment lands on the line as evidence');
+await p.click('.hop:has-text("coinhaven-basis-workpaper.txt") .hop-body');
+await p.waitForSelector('.attachment iframe');
+ok(true, 'attachment opens in the document pane');
+await p.click('text=Send a question to the client');
+await p.fill('.action-form textarea', 'For the 0.05 BTC sold on June 18: can you send the CryptoNorth purchase record or the bank statement showing the 3,050 payment on 03/15/2021?');
+await p.click('text=Send to the client');
+await p.waitForSelector('.question');
+ok(true, 'question to the client recorded on the line');
+await p.close();
+
+// 9. Client view: only their question and documents; no internal items; server refuses the workpaper
+p = await as('cu-01', '');
+await p.waitForSelector('.client-question');
+const body = await p.locator('body').innerText();
+ok(body.includes('1 question needs your answer'), 'client sees the one question addressed to them');
+ok(!body.includes('Tie gross receipts') && !body.includes('blocking') && !body.includes('Blocked'), 'client sees no review notes or open items');
+ok(!body.includes('coinhaven-basis-workpaper.txt'), 'client does not see staff files not shared with them');
+const api = await p.evaluate(async () => ({
+  packet: (await fetch('/api/packet', { headers: { 'x-user': 'cu-01' } })).status,
+  findings: (await fetch('/api/findings', { headers: { 'x-user': 'cu-01' } })).status,
+  types: [...new Set((await (await fetch('/api/events', { headers: { 'x-user': 'cu-01' } })).json()).map((e: any) => e.type))],
+}));
+ok(api.packet === 403 && api.findings === 403, 'server refuses the workpaper and findings to a client');
+ok(api.types.every((t: string) => ['client_question', 'client_answer', 'evidence_attached', 'sensitive_viewed'].includes(t)), `client receives only client events (${api.types.join(', ')})`);
+await p.fill('.client-question textarea', 'Attached is the bank statement line for the purchase.');
+await p.setInputFiles('.client-question input[type=file]', { name: 'bank-statement-2021-03.txt', mimeType: 'text/plain', buffer: Buffer.from('03/15/2021  CRYPTONORTH EXCHANGE  -3,050.00') });
+await p.click('text=Send your answer');
+await p.waitForSelector('.client-question.is-answered');
+ok(true, 'client answers with a file');
+await p.screenshot({ path: 'shots/p2-client.png' });
+await p.close();
+
+// 10. The answer and the client's file become evidence on the line
+p = await as('st-02', '#line=F8949.H.C6');
+await p.waitForSelector('.question.is-cleared');
+ok(await p.locator('.hop:has-text("bank-statement-2021-03.txt")').count() === 1, "client's file is evidence on the line");
+await p.screenshot({ path: 'shots/p2-evidence.png' });
 await p.close();
 
 ok(errors.length === 0, `no page errors ${errors.join('; ')}`);

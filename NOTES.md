@@ -78,3 +78,19 @@ Stack decisions:
 - **Open items** can be resolved by a reviewer or the partner, with a written reason.
 - **Checks:** `node scripts/e2e-phase2.ts` (12 assertions; needs a fresh DB and the dev stack running).
 - **Not yet:** file attachments as evidence, and a client-facing view that hides internal review notes from clients. Today clients can read everything except unmasked data and cannot write anything but notes.
+
+## Phase 2 finished: attachments and the client view
+- **Attachments are stored by SHA-256 under `DATA_DIR/attachments`.** The file itself says nothing; an `evidence_attached` event says what it is evidence of (refs) and who attached it. The same file attached twice is stored once.
+- **Viewing an attachment:** served with `nosniff` and a `default-src 'none'` CSP, so an uploaded HTML or SVG file cannot run script. It opens in the document pane (image or PDF inline; text in a sandboxed frame).
+- **Client visibility is decided on the server** (`visibleTo` in `shared/policy.ts`), not hidden in the UI:
+  - Clients get a client-scoped packet (`/api/client`): household, questionnaire and messages, the documents they gave us, plus the engagement letter and consent. No extracted values, no return lines, no firm data.
+  - `/api/packet` and `/api/findings` return 403 for clients.
+  - `/api/events` and the SSE stream are filtered per user. Clients receive questions addressed to them, their answers and uploads, files staff chose to share, and their own unmasked views. Review notes, open items, judgment calls, verifications and sign-offs never leave the server for a client user.
+- **Questions to the client become evidence.** A staff member sends `client_question` from a line. The client answers with text and/or a file. The file is attached to the same line refs, so it shows in that line's proof thread as evidence.
+- **Clients can no longer write internal notes.** Their only writes are answers and uploads.
+- **Switching user reloads the page,** so every fetch and the live stream are re-scoped by the server.
+
+## Deploy
+- **One Fly machine** with a volume at `/data` (event log + attachments). SQLite means a single writer, so `--ha=false`. The packet and findings ship in the image, read-only.
+- **Node pinned to 22.22.2** (`node:sqlite` is unflagged from 22.13).
+- `node scripts/e2e-phase2.ts <url>` runs the same 23 browser checks against any deployment. It writes test data, so run it on a fresh volume.

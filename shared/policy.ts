@@ -15,7 +15,9 @@ export const LEVELS = ['preparer', 'reviewer', 'partner'] as const;
 export const ALLOWED: Record<string, string[]> = {
   verified: WORKERS,
   verification_withdrawn: WORKERS,
-  note: [...STAFF, 'client'],
+  note: STAFF,
+  client_question: WORKERS,
+  client_answer: ['client'],
   review_note_opened: REVIEWERS,
   review_note_replied: STAFF,
   review_note_cleared: REVIEWERS,
@@ -29,7 +31,7 @@ export const ALLOWED: Record<string, string[]> = {
 export const VERB: Record<string, string> = {
   verified: 'verify a number', verification_withdrawn: 'withdraw a verification', note: 'add a note',
   review_note_opened: 'write a review note', review_note_replied: 'reply to a review note', review_note_cleared: 'clear a review note',
-  signed_off: 'sign off', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
+  signed_off: 'sign off', client_question: 'send a question to the client', client_answer: 'answer a question', signoff_withdrawn: 'withdraw a sign-off', finding_resolved: 'resolve an open item', finding_reopened: 'reopen an open item',
 };
 export const can = (a: Actor | undefined, type: string) => !!a && isActive(a) && (ALLOWED[type] ?? []).includes(a.role);
 
@@ -49,6 +51,12 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
   if (['note', 'review_note_opened', 'review_note_replied', 'finding_resolved'].includes(e.type) && !String(e.payload?.text ?? '').trim())
     return 'Write the note first.';
 
+  if (e.type === 'client_question' && !String(e.payload?.text ?? '').trim()) return 'Write the question first.';
+  if (e.type === 'client_answer') {
+    const q = log.find(x => x.type === 'client_question' && x.seq === e.payload?.question);
+    if (!q) return 'That question does not exist.';
+    if (!String(e.payload?.text ?? '').trim() && !(e.payload?.attachments ?? []).length) return 'Write an answer or attach a file.';
+  }
   if (e.type === 'review_note_replied' || e.type === 'review_note_cleared') {
     const opened = log.find(x => x.type === 'review_note_opened' && x.seq === e.payload?.note);
     if (!opened) return 'That review note does not exist.';
@@ -71,6 +79,21 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
     if (e.payload?.hash !== scopeHash(g, log, e.refs[0])) return 'The work changed while you were signing. Reload and look again.';
   }
   return null;
+}
+
+// ---------- what a client may see ----------
+// Clients see questions addressed to them, their own answers and uploads, files staff chose to share,
+// and their own unmasking. Review notes, open items, judgment calls, verifications and sign-offs are internal.
+export const CLIENT_TYPES = new Set(['client_question', 'client_answer', 'client_approved', 'client_signed_8879']);
+export const ATTACH_ROLES = [...STAFF, 'client'];
+export function visibleTo(a: Actor | undefined, e: StoredEvent, people: Actor[]): boolean {
+  if (!a) return false;
+  if (a.role !== 'client') return true;
+  if (CLIENT_TYPES.has(e.type)) return true;
+  const byClient = people.find(p => p.id === e.actor)?.role === 'client';
+  if (e.type === 'evidence_attached') return byClient || !!e.payload?.shared_with_client;
+  if (e.type === 'sensitive_viewed') return e.actor === a.id;
+  return false;
 }
 
 // ---------- sign-off scopes: an area of the return, or the whole return ----------

@@ -7,7 +7,8 @@ import { DocPane } from './DocPane.tsx';
 import { Palette } from './Palette.tsx';
 import { StatusMark } from './StatusMark.tsx';
 import { Session, SignoffPanel, type Form } from './Actions.tsx';
-import { can } from '../shared/policy.ts';
+import { can, type Actor } from '../shared/policy.ts';
+import { ClientApp } from './ClientApp.tsx';
 
 type Sel = { line?: string; src?: string };
 const readHash = (): Sel => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
@@ -17,8 +18,29 @@ const writeHash = (s: Sel) => {
 };
 const toggled = (s: Set<string>, x: string) => { const n = new Set(s); n.has(x) ? n.delete(x) : n.add(x); return n; };
 
+// The role switcher stands in for sign-in (per the brief). Switching user reloads, so every
+// fetch and the live stream are re-scoped by the server to what that user may see.
+export function RoleSwitch({ people, user }: { people: Actor[]; user: string }) {
+  return (
+    <label className="role"><span className="sr">Working as</span>
+      <select value={user} aria-label="Working as" onChange={e => { try { localStorage.setItem('user', e.target.value); } catch {} location.reload(); }}>
+        {people.map(p => <option key={p.id} value={p.id}>{p.name}, {p.role.replace(/_/g, ' ')}{p.role !== 'client' && !p.sensitive_data_clearance ? ', no clearance' : ''}</option>)}
+      </select>
+    </label>
+  );
+}
+
 export function App() {
-  const w = useWorkpaper();
+  const [people, setPeople] = useState<Actor[] | null>(null);
+  const user = (() => { try { return localStorage.getItem('user') ?? 'st-02'; } catch { return 'st-02'; } })();
+  useEffect(() => { fetch('/api/people').then(r => r.json()).then(setPeople); }, []);
+  if (!people) return <div className="loading">Loading…</div>;
+  const me = people.find(p => p.id === user) ?? people.find(p => p.id === 'st-02')!;
+  return me.role === 'client' ? <ClientApp me={me} people={people} /> : <StaffApp user={me.id} people={people} />;
+}
+
+function StaffApp({ user, people }: { user: string; people: Actor[] }) {
+  const w = useWorkpaper(user);
   const [sel, setSel] = useState<Sel>(readHash);
   const [cursorKey, setCursorKey] = useState<string>();
   const [openAreas, setOpenAreas] = useState<Set<string>>(new Set());
@@ -26,16 +48,13 @@ export function App() {
   const [palette, setPalette] = useState(false);
   const [form, setForm] = useState<Form>(null);
   useEffect(() => setForm(null), [sel.line]);
-  const [user, setUser] = useState(() => { try { return localStorage.getItem('user') ?? 'st-02'; } catch { return 'st-02'; } });
   useEffect(() => { const f = () => setSel(readHash()); addEventListener('popstate', f); return () => removeEventListener('popstate', f); }, []);
-  useEffect(() => { try { localStorage.setItem('user', user); } catch {} }, [user]);
 
   const g = w.g;
   const areas = useMemo(() => (g && w.byLine ? buildAreas(g, w) : []), [g, w.byLine, w.verified]);
   const rows = visibleRows(areas, openAreas, showWs);
 
-  const people = g ? [...g.P.firm.staff, ...g.P.firm.client_users] : [];
-  const me = people.find((p: any) => p.id === user);
+  const me = people.find(p => p.id === user);
   const go = (s: Sel) => { setSel(s); writeHash(s); };
   const openLine = (k: string, src?: string) => {
     if (!g) return;
@@ -82,11 +101,7 @@ export function App() {
         <span className="version" title={g.P.return_versions.at(-1).trigger}>Return v3</span>
         <button className="blocking" onClick={() => go({})}><StatusMark status="Blocked" /> {blockingCount} blocking filing</button>
         <button className="search" onClick={() => setPalette(true)}>Search <kbd>⌘K</kbd></button>
-        <label className="role"><span className="sr">Working as</span>
-          <select value={user} onChange={e => setUser(e.target.value)} aria-label="Working as">
-            {people.map((p: any) => <option key={p.id} value={p.id}>{p.name}, {p.role.replace(/_/g, ' ')}{p.role !== 'client' && !p.sensitive_data_clearance ? ', no clearance' : ''}</option>)}
-          </select>
-        </label>
+        <RoleSwitch people={people} user={user} />
         <span className={`live${w.live ? ' on' : ''}`} title={w.live ? 'Changes from colleagues appear as they happen' : 'Not connected; changes from others appear on reload'}>{w.live ? 'Live' : 'Offline'}</span>
       </header>
       <main className={`panes${sel.line || sel.src ? '' : ' is-home'}`}>

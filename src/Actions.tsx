@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from 'react';
 import { can, LEVELS, scopeHash, scopeName, type Actor } from '../shared/policy.ts';
 import { fmt, type Finding, type Graph } from '../shared/packet.ts';
 import { StatusMark } from './StatusMark.tsx';
-import { post, type Workpaper, type ReviewNote } from './data.ts';
+import { post, attach, type Workpaper, type ReviewNote, type Question } from './data.ts';
 
 export const Session = createContext<{ me?: Actor; people: Actor[] }>({ people: [] });
 export const useSession = () => useContext(Session);
@@ -32,7 +32,7 @@ function useAct() {
 }
 
 // ---------- line actions: verify, note, review note ----------
-export type Form = null | 'verify' | 'note' | 'review';
+export type Form = null | 'verify' | 'note' | 'review' | 'attach' | 'ask';
 export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Workpaper; lineKey: string; form: Form; setForm: (f: Form) => void }) {
   const { me, act, error, busy } = useAct();
   const { people } = useSession();
@@ -56,6 +56,8 @@ export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Wor
         {can(me, 'verified') && !(v && v.payload.value === l.value) && <button className="btn" onClick={() => setForm(form === 'verify' ? null : 'verify')} aria-expanded={form === 'verify'}>Verify {label}<kbd>v</kbd></button>}
         {can(me, 'note') && <button className="btn quiet" onClick={() => setForm(form === 'note' ? null : 'note')} aria-expanded={form === 'note'}>Add a note<kbd>n</kbd></button>}
         {can(me, 'review_note_opened') && <button className="btn quiet" onClick={() => setForm(form === 'review' ? null : 'review')} aria-expanded={form === 'review'}>Write a review note</button>}
+        {can(me, 'note') && <button className="btn quiet" onClick={() => setForm(form === 'attach' ? null : 'attach')} aria-expanded={form === 'attach'}>Attach a file</button>}
+        {can(me, 'client_question') && <button className="btn quiet" onClick={() => setForm(form === 'ask' ? null : 'ask')} aria-expanded={form === 'ask'}>Send a question to the client</button>}
         {!me?.id || (!can(me, 'verified') && !can(me, 'note')) ? <span className="muted">{me ? `${me.name} can read this line but not change it.` : ''}</span> : null}
       </div>
       {form === 'verify' && (
@@ -70,6 +72,14 @@ export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Wor
           {error && <p className="warn">{error}</p>}
         </form>
       )}
+      {form === 'attach' && <AttachForm refs={[lineKey]} onDone={() => setForm(null)} staff />}
+      {form === 'ask' && (
+        <form className="action-form" onSubmit={e => { e.preventDefault(); submit('client_question', { text: text.trim(), about: l.label }); }}>
+          <label>Question for the client. They see only this text, not the workpaper.<textarea value={text} onChange={e => setText(e.target.value)} rows={3} autoFocus /></label>
+          <div className="action-row"><button className="btn" disabled={busy || !text.trim()}>Send to the client</button><button type="button" className="btn quiet" onClick={() => setForm(null)}>Cancel</button></div>
+          {error && <p className="warn">{error}</p>}
+        </form>
+      )}
       {(form === 'note' || form === 'review') && (
         <form className="action-form" onSubmit={e => { e.preventDefault(); submit(form === 'note' ? 'note' : 'review_note_opened', { text: text.trim() }); }}>
           <label>{form === 'note' ? 'Note' : 'Review note. It blocks filing until you clear it.'}<textarea value={text} onChange={e => setText(e.target.value)} rows={3} autoFocus /></label>
@@ -77,6 +87,50 @@ export function LineActions({ g, w, lineKey, form, setForm }: { g: Graph; w: Wor
           {error && <p className="warn">{error}</p>}
         </form>
       )}
+    </div>
+  );
+}
+
+// ---------- attach a file as evidence ----------
+export function AttachForm({ refs, onDone, staff = false, question }: { refs: string[]; onDone: () => void; staff?: boolean; question?: number }) {
+  const { me } = useSession();
+  const [file, setFile] = useState<File | null>(null);
+  const [note, setNote] = useState('');
+  const [share, setShare] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <form className="action-form" onSubmit={async e => {
+      e.preventDefault(); if (!file || !me) return;
+      setBusy(true); const r = await attach(me.id, file, refs, { note: note.trim() || undefined, share, question }); setBusy(false);
+      r.error ? setError(r.error) : onDone();
+    }}>
+      <label>File (PDF, image or text, up to 15 MB)<input type="file" onChange={e => setFile(e.target.files?.[0] ?? null)} autoFocus /></label>
+      <label>What does it show? (optional)<textarea value={note} onChange={e => setNote(e.target.value)} rows={2} /></label>
+      {staff && <label className="check"><input type="checkbox" checked={share} onChange={e => setShare(e.target.checked)} /> The client may see this file</label>}
+      <div className="action-row"><button className="btn" disabled={busy || !file}>Attach as evidence</button><button type="button" className="btn quiet" onClick={onDone}>Cancel</button></div>
+      {error && <p className="warn">{error}</p>}
+    </form>
+  );
+}
+
+// ---------- questions sent to the client, as staff see them ----------
+export function ClientQuestions({ questions, onAttachment }: { questions: Question[]; onAttachment: (ref: string) => void }) {
+  const { people } = useSession();
+  if (!questions.length) return null;
+  return (
+    <div className="review-notes">
+      {questions.map(({ q, answers }) => (
+        <div key={q.seq} className={`review-note question${answers.length ? ' is-cleared' : ''}`}>
+          <p className="finding-title"><StatusMark status={answers.length ? 'Verified' : 'Question open'} /> <span><strong className="finding-state">{answers.length ? 'Client answered.' : 'Waiting on the client.'}</strong> {nameOf(people, q.actor)} asked on {when(q.at)}</span></p>
+          <p className="memo note-text">{q.payload.text}</p>
+          {answers.map(a => (
+            <div key={a.seq} className="memo note-reply"><span className="label">{nameOf(people, a.actor)}</span>{a.payload.text}
+              {(a.payload.attachments ?? []).map((id: string) => <button key={id} className="link" onClick={() => onAttachment(`att:${id}`)}>Open the attached file</button>)}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

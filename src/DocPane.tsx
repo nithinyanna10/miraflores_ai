@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fmt, isLot, labelMaker, type Graph, type RefNode } from '../shared/packet.ts';
 import { StatusMark } from './StatusMark.tsx';
-import { reveal, type Workpaper } from './data.ts';
+import { reveal, attachmentUrl, type Workpaper, type WEvent } from './data.ts';
 import { useSession } from './Actions.tsx';
 import { isActive } from '../shared/policy.ts';
 
@@ -21,6 +21,10 @@ export function DocPane({ g, w, refStr, onLine, onSrc, hint }: { g: Graph; w: Wo
     if (el) el.scrollIntoView({ block: 'center' }); else box.current?.scrollTo({ top: 0 });
   }, [refStr]);
 
+  if (refStr?.startsWith('att:')) {
+    const a = w.attachments!.find(x => x.payload.id === refStr.slice(4));
+    return <aside className="docpane" ref={box} aria-label="Attached file">{a ? <AttachmentView a={a} user={me!.id} people={people} /> : <p className="muted pane-hint">That file is not available to you.</p>}</aside>;
+  }
   if (!n) return <aside className="docpane" ref={box} aria-label="Documents">{hint ? <p className="muted pane-hint">{hint}</p> : <DocIndex g={g} w={w} onDoc={onSrc} />}</aside>;
 
   if (!docId) return (
@@ -85,6 +89,28 @@ export function DocPane({ g, w, refStr, onLine, onSrc, hint }: { g: Graph; w: Wo
         <section><h3>This document lands on</h3>{docLands.length ? <Lands g={g} w={w} keys={docLands} onLine={k => onLine(k)} /> : <p className={reason.explained ? 'muted' : 'warn'}>{reason.text}</p>}</section>
       </footer>
     </aside>
+  );
+}
+
+// An attached file, shown in place. Images and PDFs render inline; anything else downloads.
+export function AttachmentView({ a, user, people }: { a: WEvent; user: string; people: { id: string; name: string }[] }) {
+  const url = attachmentUrl(user, a.payload.id);
+  const t: string = a.payload.type ?? '';
+  return (
+    <>
+      <header className="doc-head">
+        <p className="doc-kicker">Attached by {people.find(p => p.id === a.actor)?.name ?? a.actor} on {a.at.slice(0, 10)}{a.payload.shared_with_client ? ', shared with the client' : ''}</p>
+        <h2>{a.payload.name}</h2>
+        {a.payload.note && <p className="memo">{a.payload.note}</p>}
+      </header>
+      <div className="sheet attachment">
+        {t.startsWith('image/') ? <img src={url} alt={a.payload.name} />
+          : t === 'application/pdf' ? <iframe src={url} title={a.payload.name} />
+          : t.startsWith('text/') ? <iframe src={url} title={a.payload.name} className="text" />
+          : <p className="muted">This file type does not preview here.</p>}
+      </div>
+      <p><a href={url} download={a.payload.name}>Download {a.payload.name}</a></p>
+    </>
   );
 }
 
