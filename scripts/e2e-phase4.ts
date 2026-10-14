@@ -3,10 +3,12 @@
 import { chromium, type Page, type BrowserContext } from 'playwright';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { resetIfLive } from './live.ts';
 
 const base = process.argv[2] ?? 'http://localhost:5173';
 const local = `${homedir()}/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
 const browser = await chromium.launch(existsSync(local) ? { executablePath: local } : {});
+try {
 const ok = (v: unknown, m: string) => { if (!v) throw new Error('FAIL: ' + m); console.log('ok:', m); };
 const errors: string[] = [];
 const ctxs: Record<string, BrowserContext> = {};
@@ -56,8 +58,14 @@ ok(!JSON.stringify(ev).includes('"41207"') && JSON.stringify(ev).includes('•12
 // 3. Transmit with an override; the IRS rejects for Theo's SSN (the audit's open item); FTB holds
 p = await as('st-03', '/app#view=filing');
 ok(await p.locator('.steps').innerText().then(t => t.includes('Client approval and e-file authorization')), 'readiness lists the required steps');
-await p.fill('.filing textarea', 'Partner decision for the demo: transmit with documented open items; see the steps list.');
-await p.click('text=Transmit to the IRS and FTB');
+// Each unmet step needs its own confirmed reason; the button stays disabled until all are given.
+const boxes = p.locator('.override-step textarea');
+const nSteps = await boxes.count();
+ok(nSteps > 0 && await p.locator('button:has-text("steps not done")').isDisabled(), `transmitting with ${nSteps} unmet steps needs a reason for each`);
+for (let i = 0; i < nSteps; i++) await boxes.nth(i).fill(`Partner decision for the demo (step ${i + 1}): documented and accepted.`);
+await p.click('button:has-text("steps not done")');
+await p.waitForSelector('.override-log');
+ok(await p.locator('.override-log li').count() === nSteps, 'the log lists every waived step with its reason');
 await p.click('text=Record the IRS response');
 await p.waitForSelector('text=R0000-504-02');
 ok(await p.locator('text=The audit flagged this before filing').count() === 1, 'rejection links back to the open item the audit raised');
@@ -81,8 +89,8 @@ for (const who of ['st-01', 'st-02', 'st-03']) {
   await p.close();
 }
 p = await as('st-03', '/app#view=filing');
-await p.fill('.filing textarea', 'Retransmitting after correcting the dependent SSN; other items documented.');
-await p.click('text=Transmit again');
+{ const b2 = p.locator('.override-step textarea'); const n2 = await b2.count(); for (let i = 0; i < n2; i++) await b2.nth(i).fill('Retransmitting after correcting the dependent SSN; still accepted as documented.'); }
+await p.click('button:has-text("steps not done")');
 await p.click('text=Record the IRS response');
 await p.waitForSelector('text=IRS accepted');
 await p.click('text=Record the FTB response');
@@ -123,4 +131,7 @@ await p.screenshot({ path: 'shots/p4-replay.png' });
 await p.close();
 
 ok(errors.length === 0, `no page errors ${errors.join('; ')}`);
-await browser.close();
+} finally {
+  await browser.close();
+  await resetIfLive(base);
+}

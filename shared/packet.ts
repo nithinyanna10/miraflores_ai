@@ -278,6 +278,18 @@ export function effectOf(P: Packet, l: Line, delta: number): Effect {
   if (!m || typeof l.value !== 'number') return { federal: 0, california: 0, kind: 'none', basis: 'No rate applies to this line; the effect needs an engine recompute.' };
   if ('pay' in m) return { federal: m.pay === 'federal' ? -delta : 0, california: m.pay === 'california' ? -delta : 0, kind: 'balance_due', basis: 'Payments change the balance due 1:1.' };
   if ('credit' in m) return { federal: m.credit === 'federal' ? -delta : 0, california: m.credit === 'california' ? -delta : 0, kind: 'tax', basis: 'Credits change tax 1:1.' };
+  // State and local taxes: the federal deduction is capped, so only the change in the capped amount counts
+  // (the v3 salt rate is 0 because 5d is above the cap; a large cut crosses back under it).
+  if (/^SchA\.5[ab]$/.test(l.key)) {
+    const L = Object.fromEntries(P.return_versions.find((v: any) => v.version === 'v3').lines.map((x: Line) => [x.key, x.value]));
+    const p = P.engine_reference.parameters;
+    const cap = Math.max(p.salt_cap_floor, p.salt_cap - p.salt_cap_phase_rate * Math.max(0, L['F1040.11'] - p.salt_cap_phase_start));
+    const fedChange = Math.min(cap, L['SchA.5d'] + delta) - L['SchA.5e'];
+    return {
+      federal: Math.round(fedChange * R.itemized.federal_per_dollar), california: Math.round(delta * R.salt.california_per_dollar), kind: 'tax',
+      basis: `capped SALT changes by ${fedChange.toLocaleString('en-US')} x v3 itemized rate; California ${delta.toLocaleString('en-US')} x salt rate`,
+    };
+  }
   // A sale during California residency is fully California-source (readme): use ca_source_income.
   const sold = l.label.match(/sold (\d{4}-\d{2}-\d{2})/)?.[1];
   const caRes = P.household.residency.find((r: any) => r.state === 'CA');
@@ -305,3 +317,16 @@ export function knockOns(key: string): KnockOn[] {
   ];
   return [];
 }
+
+// The amount a finding's fix proposes for this line, if it states one.
+export function proposedValue(f: Finding, l: Line): number | undefined {
+  const fix = f.fix ?? '';
+  const n = (s: string) => Number(s.replace(/,/g, ''));
+  let m = fix.match(new RegExp(`${l.key.replace(/\./g, '\\.')} = (-?[\\d,]+)`));
+  if (m) return n(m[1]);
+  if (new RegExp(`^Remove ${l.key.replace(/\./g, '\\.')}\\b`).test(fix)) return 0;
+  if (/^F8949\./.test(l.key) && (m = fix.match(/gain (-?[\d,]+)/))) return n(m[1]);
+  if ((m = fix.match(/^(?:Deduct|Use [\w ]+:) (-?[\d,]+)/))) return n(m[1]);
+  return undefined;
+}
+

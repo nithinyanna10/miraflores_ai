@@ -75,8 +75,8 @@
   "info": 47
  },
  "error_tax_effect_total": {
-  "federal": -13725,
-  "california": -4392
+  "federal": -10805,
+  "california": -4136
  },
  "findings": [
   {
@@ -322,10 +322,10 @@
    ],
    "amount": -2590,
    "tax_effect": {
-    "federal": -919,
-    "california": -80,
+    "federal": 919,
+    "california": 80,
     "kind": "tax",
-    "basis": "-2,590 x v3 rate schc_profit; 3700 mi x 0.7; also reduces SE tax"
+    "basis": "+2,590 x v3 schc_profit rate"
    },
    "fix": "Exclude page 3: business miles 8,100, car expense 5,670."
   },
@@ -421,10 +421,10 @@
    ],
    "amount": -1308,
    "tax_effect": {
-    "federal": -464,
-    "california": -41,
+    "federal": 464,
+    "california": 41,
     "kind": "tax",
-    "basis": "-1,308 x v3 rate schc_profit"
+    "basis": "+1,308 x v3 schc_profit rate"
    },
    "fix": "SchC.25 = 2,172."
   },
@@ -443,10 +443,10 @@
    ],
    "amount": -216,
    "tax_effect": {
-    "federal": -77,
-    "california": -7,
+    "federal": 77,
+    "california": 7,
     "kind": "tax",
-    "basis": "-216 x v3 rate schc_profit"
+    "basis": "+216 x v3 schc_profit rate"
    },
    "fix": "SchC.27a.1 = 6,634."
   },

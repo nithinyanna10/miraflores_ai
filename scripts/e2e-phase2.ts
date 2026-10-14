@@ -3,10 +3,12 @@
 import { chromium, type Page } from 'playwright';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { resetIfLive } from './live.ts';
 
 const base = process.argv[2] ?? 'http://localhost:5173';
 const local = `${homedir()}/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
 const browser = await chromium.launch(existsSync(local) ? { executablePath: local } : {});
+try {
 const ok = (v: unknown, m: string) => { if (!v) throw new Error('FAIL: ' + m); console.log('ok:', m); };
 const errors: string[] = [];
 
@@ -152,4 +154,7 @@ ok((await anon.request.get(`${base}/api/events`)).status() === 401, 'Change role
 await anon.close();
 
 ok(errors.length === 0, `no page errors ${errors.join('; ')}`);
-await browser.close();
+} finally {
+  await browser.close();
+  await resetIfLive(base);
+}

@@ -3,6 +3,7 @@
 // Run: node scripts/audit.ts
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { effectOf } from '../shared/packet.ts';
 
 const RAW = readFileSync(new URL('../data/okafor_lindqvist_2025_packet.json', import.meta.url));
 const P: any = JSON.parse(RAW.toString('utf8'));
@@ -60,6 +61,12 @@ function effect(cat: string, delta: number, caCat = cat, note = ''): Effect {
     kind: 'tax',
     basis: `${money(delta)} x v3 rate ${cat}${caCat !== cat ? ` (CA: ${caCat})` : ''}${note ? '; ' + note : ''}`,
   };
+}
+// Effect of changing one line by delta, using the same mapping as the app (shared/packet.ts effectOf),
+// so an expense going down raises profit and tax. One source of truth for signs.
+function lineEffect(key: string, delta: number): Effect {
+  const e = effectOf(P, V3[key], delta);
+  return { federal: e.federal, california: e.california, kind: e.kind === 'balance_due' ? 'balance_due' : 'tax', basis: e.basis };
 }
 const inCA = (date: string) => date >= CA_RES.from && date <= CA_RES.to;
 
@@ -239,7 +246,8 @@ for (const d of P.documents) {
       return pages.includes(pa) && pages.includes(pb);
     });
     const dupTotal = (evsByDoc[d.id] ?? []).find(e => e.page === pb && e.field === 'page_total')?.value;
-    const eff = d.id === 'D23' && dupTotal ? effect('schc_profit', -dupTotal * params.mileage_rate, 'schc_profit', `${dupTotal} mi x ${params.mileage_rate}; also reduces SE tax`) : undefined;
+    // Fewer miles means a smaller car expense (SchC.9), so profit and tax go up: same sign rule as the app (effectOf).
+    const eff = d.id === 'D23' && dupTotal ? lineEffect('SchC.9', -dupTotal * params.mileage_rate) : undefined;
     add({
       severity: hit.length ? 'error' : 'info', check: 'duplicate_documents',
       title: `${d.id} page ${pb} is a second scan of page ${pa}${hit.length ? ' and both are counted' : ''}`,
@@ -889,13 +897,13 @@ const ADMIN_TYPES = new Set(['engagement_letter', 'consent_7216', 'identity_docu
   if (V3['SchC.25'].value === phone + net) add({
     severity: 'error', check: 'independent_recompute', title: `Telephone and internet deducted at 100%; client puts business use at ${phonePct * 100}% / ${netPct * 100}%`,
     detail: `D15: family mobile plan (4 lines) ${money(phone)}, home internet ${money(net)}. call-01: "${P.client.call_notes[0].notes[0]}" / "${P.client.call_notes[0].notes[1]}"`,
-    refs: ['call-01', 'doc:D15#page2', 'ev-0095'], lines: ['SchC.25'], amount: -disallow, tax_effect: effect('schc_profit', -disallow), fix: `SchC.25 = ${money(phone + net - disallow)}.`,
+    refs: ['call-01', 'doc:D15#page2', 'ev-0095'], lines: ['SchC.25'], amount: -disallow, tax_effect: lineEffect('SchC.25', -disallow), fix: `SchC.25 = ${money(phone + net - disallow)}.`,
   });
   const spotify = evVal('ev-0106');
   if (/Spotify Family/.test(call) && /personal/.test(call)) add({
     severity: 'error', check: 'independent_recompute', title: `Personal Spotify Family ${money(spotify)} in Schedule C software`,
     detail: `D15 p1 lists Spotify Family inside software and subscriptions ${money(evVal('ev-0099'))}; call-01: "${P.client.call_notes[0].notes[2]}"`,
-    refs: ['ev-0106', 'call-01'], lines: ['SchC.27a.1'], amount: -spotify, tax_effect: effect('schc_profit', -spotify), fix: `SchC.27a.1 = ${money(evVal('ev-0099') - spotify)}.`,
+    refs: ['ev-0106', 'call-01'], lines: ['SchC.27a.1'], amount: -spotify, tax_effect: lineEffect('SchC.27a.1', -spotify), fix: `SchC.27a.1 = ${money(evVal('ev-0099') - spotify)}.`,
   });
 
   // Home office simplified method: average monthly square footage from D24

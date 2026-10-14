@@ -90,8 +90,11 @@ export function refuse(a: Actor | undefined, e: EventIn, log: StoredEvent[], g: 
     const ef = efileState(g, log);
     if (ef.awaiting) return 'The last transmission is still waiting for the agencies to respond.';
     if (ef.fedAccepted && ef.caAccepted) return 'Both returns were accepted.';
+    // Every unmet required step must be confirmed by the partner with its own reason.
     const other = steps.filter(s => !s.done);
-    if (other.length && !String(e.payload?.override ?? '').trim()) return `Not ready: ${other.map(s => s.step).join('; ')}. To transmit anyway, write why.`;
+    const reasons = e.payload?.overrides ?? {};
+    const missing = other.filter(s => !String(reasons[s.step] ?? '').trim());
+    if (missing.length) return `Not ready. Confirm each unmet step with a reason before transmitting: ${missing.map(s => s.step).join('; ')}.`;
   }
   if (e.type === 'efile_response') {
     const ef = efileState(g, log);

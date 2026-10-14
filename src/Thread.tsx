@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { breakHop, fmt, formName, isLot, labelMaker, locate, severityStatus, type Finding, type Graph, type Line, type Status } from '../shared/packet.ts';
+import { breakHop, fmt, formName, isLot, labelMaker, locate, severityStatus, proposedValue, type Finding, type Graph, type Line, type Status } from '../shared/packet.ts';
 import { StatusMark } from './StatusMark.tsx';
 import { lotLabel } from './Outline.tsx';
 import type { Workpaper } from './data.ts';
@@ -11,18 +11,6 @@ type Props = { g: Graph; w: Workpaper; lineKey: string; src?: string; onLine: (k
 const signed = (n: number) => (n === 0 ? 'no change' : `${n > 0 ? '+' : '−'}${Math.abs(n).toLocaleString('en-US')}`);
 
 // Problem, fix, effect: one line each. The reasoning is one click away.
-// The amount a finding's fix proposes for this line, if it states one.
-export function proposedValue(f: Finding, l: Line): number | undefined {
-  const fix = f.fix ?? '';
-  const n = (s: string) => Number(s.replace(/,/g, ''));
-  let m = fix.match(new RegExp(`${l.key.replace(/\./g, '\\.')} = (-?[\\d,]+)`));
-  if (m) return n(m[1]);
-  if (new RegExp(`^Remove ${l.key.replace(/\./g, '\\.')}\\b`).test(fix)) return 0;
-  if (/^F8949\./.test(l.key) && (m = fix.match(/gain (-?[\d,]+)/))) return n(m[1]);
-  if ((m = fix.match(/^(?:Deduct|Use [\w ]+:) (-?[\d,]+)/))) return n(m[1]);
-  return undefined;
-}
-
 export function FindingCard({ f, onApply }: { f: Finding; onApply?: (p: Prefill) => void }) {
   const [why, setWhy] = useState(false);
   const [explain, setExplain] = useState(false);

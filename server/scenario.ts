@@ -1,7 +1,7 @@
 // Mid-season demo state, dated along the packet's timeline (work started 2026-03-09 ... v3 on 2026-06-23 ...
 // client messages 2026-06-30 and 2026-07-01). Every event is one a person could have created through the API:
 // sign-off hashes and adjustment effects are computed exactly as the live endpoints compute them.
-import { effectOf, type Graph } from '../shared/packet.ts';
+import { effectOf, proposedValue, type Graph } from '../shared/packet.ts';
 import { scopeHash, scopeLines, NEEDS_PARTNER_OVER, type StoredEvent } from '../shared/policy.ts';
 
 type Append = (actor: string, type: string, refs: string[], payload: any, at?: string) => StoredEvent;
@@ -9,7 +9,8 @@ type Append = (actor: string, type: string, refs: string[], payload: any, at?: s
 export function seedMidSeason(g: Graph, append: Append, log: () => StoredEvent[]) {
   const P = g.P;
   const findings = log().filter(e => e.type === 'finding_opened').map(e => e.payload);
-  const errorOn = (key: string) => findings.find(f => f.severity === 'error' && f.lines[0] === key);
+  // The audit finding whose fix states an amount for this line: every scenario adjustment is one of these.
+  const errorOn = (key: string) => findings.find(f => f.severity === 'error' && f.lines.includes(key) && proposedValue(f, g.lines.v3[key]) !== undefined);
   const varianceOn = (key: string) => findings.find(f => f.check === 'prior_year_variance' && f.lines[0] === key);
   const at = (d: string) => `${d}:00Z`;
   const L = g.lines.v3;

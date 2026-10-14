@@ -185,3 +185,24 @@ Stack decisions:
 - **After filing, costs are estimated, not assessed.** Interest and failure-to-pay come from the frozen balance, the payment date in the timeline and `post_filing_rates`. Labelled as estimates; the transcript shows the actual 196/276 assessment.
 - **Season.** The packet's timeline merged with the workpaper's events. "Replay" sets `asof` in the URL: the same derivation runs over events up to that day, the session's `me` is withheld so every action disappears, and a bar says it is read-only. Replay changes the event state only; return values stay v3 (version switching by date is a ceiling).
 - **Checks:** `node scripts/e2e-phase4.ts` (22 checks: the full season from mid-season to carry-forward and replay).
+
+## Reconciliation, and an audit bug it found
+- **The bug.** Reconciling the approval summary (refund 15,774 vs v3 owed 4,220) against ERRORS.md showed the audit had the wrong sign on three expense-side errors:
+  - F-010, duplicate mileage page: now +919 / +80.
+  - F-014, phone and internet: now +464 / +41.
+  - F-015, Spotify: now +77 / +7.
+
+  Disallowing an expense raises profit and tax. The audit had multiplied the expense change by the profit rate without flipping the sign.
+- **The fix.** The audit now uses the same `effectOf` as the app for line effects: one source of truth for signs. `effectOf` in turn learned the SALT cap from the audit (F-008: the federal effect is on the capped change, since the v3 salt rate is 0 above the cap).
+- **New totals.** The corrected ERRORS.md error total is federal −10,805, California −4,136 (tax −11,805 / −7,636, plus payments +1,000 / +3,500).
+- **`node scripts/reconcile.ts` proves every demo number ties to ERRORS.md:**
+  1. For all 13 findings whose fix states an amount, the app's effect equals the finding's effect.
+  2. The mid-season scenario adjusts only through audit findings, each with the fix's exact amount and effect. The scenario now finds a finding by any line it names, not just its first.
+  3. The approval summary equals v3 plus those effects. It prints the table:
+     - v3 total tax 81,962, minus 19,994, gives 61,968.
+     - Owed 4,220 becomes a refund of 15,774.
+     - California 18,874 minus 3,218 gives 15,656.
+  4. ERRORS.md's total = the scenario's 8 fixes + the 9 not yet applied.
+- **In the app**, the approval section has "How these amounts tie to the audit", with the same table.
+- **E-file overrides.** Every unmet required step must be confirmed with its own reason (the server refuses otherwise). The log shows a red block, "Transmitted with N required steps not done", with each step and the partner's reason on its own line in serif.
+- **Live test runs.** Every e2e script resets a non-local target to the mid-season scenario in a `finally` block, so the live demo is never left in a test state.

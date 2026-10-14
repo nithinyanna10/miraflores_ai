@@ -24,7 +24,7 @@ function useAct() {
 export function FilingView({ g, w, onLine }: { g: Graph; w: Workpaper; onLine: (k: string) => void }) {
   const { me, people } = useSession();
   const { act, error, busy } = useAct();
-  const [override, setOverride] = useState('');
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [reason, setReason] = useState('');
   const log = w.events;
   const steps = readiness(g, log);
@@ -36,6 +36,7 @@ export function FilingView({ g, w, onLine }: { g: Graph; w: Workpaper; onLine: (
   const clients = g.P.firm.client_users;
   const name = (id: string) => (id === 'system' ? 'The workpaper' : people.find(p => p.id === id)?.name ?? id);
   const unmet = steps.filter(s => !s.done);
+  const waived = unmet.filter(s => !['Partner sign-off', 'Client approval and e-file authorization'].includes(s.step));
   const S = sent?.payload.summary ?? finalSummary(g, log);
 
   return (
@@ -59,6 +60,19 @@ export function FilingView({ g, w, onLine }: { g: Graph; w: Workpaper; onLine: (
             <ul className="plain">{clients.map((c: any) => { const s = signed.find(x => x.actor === c.id); return <li key={c.id}><StatusMark status={s ? 'Signed' : 'Unverified'} /> {c.name}: {s ? `signed Forms 8879 and FTB 8879 on ${longDate(s.at)}` : 'not signed yet'}</li>; })}</ul>
           </>
         ) : <p className="muted">Not sent yet. The partner sends it after signing off on the whole return.</p>}
+        {Object.keys(w.adjustments!).length > 0 && (
+          <details className="ties">
+            <summary>How these amounts tie to the audit</summary>
+            <table className="ledger compact"><tbody>
+              <tr><th scope="row">v3 as computed by the engine</th><td className="num">{fmt(g.P.return_versions.at(-1).summary.federal.total_tax)}</td><td className="num">{fmt(g.P.return_versions.at(-1).summary.california.total_tax)}</td></tr>
+              {Object.values(w.adjustments!).map(a => (
+                <tr key={a.seq}><th scope="row"><button onClick={() => onLine(a.refs[0])}>{a.payload.finding ?? 'No audit finding'}: {g.line(a.refs[0])?.label}</button></th><td className="num">{a.payload.effect.kind === 'tax' ? fmt(a.payload.effect.federal) : ''}</td><td className="num">{a.payload.effect.kind === 'tax' ? fmt(a.payload.effect.california) : ''}</td></tr>
+              ))}
+              <tr><th scope="row"><strong>Estimated total tax</strong></th><td className="num"><strong>{fmt(S.federal.total_tax)}</strong></td><td className="num"><strong>{fmt(S.california.total_tax)}</strong></td></tr>
+            </tbody></table>
+            <p className="muted">Federal and California columns. Each effect is the one in ERRORS.md for that finding (change x v3 rate); <span className="ref">node scripts/reconcile.ts</span> checks they agree.</p>
+          </details>
+        )}
         {can(me, 'sent_for_approval') && !frozen && <button className="btn quiet" disabled={busy} onClick={() => act('sent_for_approval', ['area:Whole return'])}>{sent ? 'Send the updated return again' : 'Send to the client for approval'}</button>}
       </section>
 
@@ -76,10 +90,15 @@ export function FilingView({ g, w, onLine }: { g: Graph; w: Workpaper; onLine: (
         )}
         {!ef.awaiting && !(ef.fedAccepted && ef.caAccepted) && can(me, 'efile_transmitted') && (
           <div className="action-form">
-            {unmet.filter(s => !['Partner sign-off', 'Client approval and e-file authorization'].includes(s.step)).length > 0 && (
-              <label>Some required steps are not done. To transmit anyway, write why (it is recorded with the transmission).<textarea rows={2} value={override} onChange={e => setOverride(e.target.value)} /></label>
-            )}
-            <div className="action-row"><button className="btn" disabled={busy} onClick={async () => { if (await act('efile_transmitted', ['area:Whole return'], { override: override.trim() || undefined })) setOverride(''); }}>{ef.transmissions.length ? 'Transmit again' : 'Transmit to the IRS and FTB'}</button></div>
+            {waived.length > 0 && <>
+              <p className="override-head"><StatusMark status="Blocked" /> {waived.length} required {waived.length === 1 ? 'step is' : 'steps are'} not done. To transmit anyway, confirm each one with your reason. Each reason is recorded with the transmission and shown in the log.</p>
+              {waived.map(st => (
+                <label key={st.step} className="override-step"><span><strong>{st.step}</strong><span className="muted">: {st.missing}</span></span>
+                  <textarea rows={2} value={overrides[st.step] ?? ''} onChange={e => setOverrides({ ...overrides, [st.step]: e.target.value })} placeholder="Why file without this step" />
+                </label>
+              ))}
+            </>}
+            <div className="action-row"><button className="btn" disabled={busy || waived.some(st => !overrides[st.step]?.trim())} onClick={async () => { if (await act('efile_transmitted', ['area:Whole return'], waived.length ? { overrides: Object.fromEntries(waived.map(st => [st.step, overrides[st.step].trim()])) } : {})) setOverrides({}); }}>{waived.length ? `Transmit with ${waived.length} ${waived.length === 1 ? 'step' : 'steps'} not done` : ef.transmissions.length ? 'Transmit again' : 'Transmit to the IRS and FTB'}</button></div>
           </div>
         )}
       </section>
@@ -109,7 +128,18 @@ export function FilingView({ g, w, onLine }: { g: Graph; w: Workpaper; onLine: (
 }
 
 function efileLine(e: WEvent, name: (id: string) => string, g: Graph, onLine: (k: string) => void) {
-  if (e.type === 'efile_transmitted') return <><StatusMark status="Unverified" /><span>{longDate(e.at)}: {name(e.actor)} transmitted the federal and California returns.{e.payload.override ? <span className="memo"> Transmitted with steps open: {e.payload.override}</span> : ''}</span></>;
+  if (e.type === 'efile_transmitted') {
+    const ov = Object.entries(e.payload.overrides ?? {}) as [string, string][];
+    return <><StatusMark status={ov.length ? 'Blocked' : 'Unverified'} /><div>
+      <p>{longDate(e.at)}: {name(e.actor)} transmitted the federal and California returns.</p>
+      {ov.length > 0 && (
+        <div className="override-log">
+          <p className="override-log-head">Transmitted with {ov.length} required {ov.length === 1 ? 'step' : 'steps'} not done, each confirmed by {name(e.actor)}:</p>
+          <ul>{ov.map(([step, why]) => <li key={step}><span className="label">{step}</span><p className="memo">{why}</p></li>)}</ul>
+        </div>
+      )}
+    </div></>;
+  }
   if (e.type === 'return_frozen') return <><StatusMark status="Frozen" /><span>{longDate(e.at)}: return frozen at filing.</span></>;
   const r = e.payload.record;
   const who = r.jurisdiction === 'federal' ? 'IRS' : 'FTB';

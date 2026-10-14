@@ -453,3 +453,15 @@ button.hop-body:hover { border-color: var(--ink-3); }
 @media (max-width: 1360px) { .version { display: none; } .topbar { gap: 14px; } .search { width: 150px; } }
 .efile-row { display: grid !important; grid-template-columns: 14px 1fr; gap: 8px; align-items: baseline; }
 .steps li > span { line-height: 1.45; }
+
+.override-head { display: flex; gap: 8px; align-items: baseline; color: var(--red); font-weight: 600; }
+.override-step { display: grid; gap: 4px; color: var(--ink) !important; }
+.override-log { margin-top: 6px; padding: 8px 12px; border-left: 3px solid var(--red); background: var(--desk); }
+.override-log-head { color: var(--red); font-weight: 600; }
+.override-log ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.override-log .memo { margin-top: 2px; }
+.efile-row p { margin: 0; }
+.ties summary { cursor: pointer; color: var(--ink-2); }
+.ties table { margin-top: 6px; max-width: 640px; }
+.timeline-list .override-log li { display: block; }
+.override-log li > .label { display: block; font-size: 13px; }
