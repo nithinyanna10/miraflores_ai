@@ -1,0 +1,29 @@
+{
+  "name": "miraflores-workpaper",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "audit": "node scripts/audit.ts",
+    "server": "node --watch --disable-warning=ExperimentalWarning server/index.ts",
+    "dev": "npm run server & vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --disable-warning=ExperimentalWarning server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "shots": "node scripts/shots.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "hono": "^4.13.13",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.64.1",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  }
+}
