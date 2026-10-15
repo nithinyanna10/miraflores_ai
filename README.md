@@ -25,11 +25,7 @@ Node 22.13 or later (for `node:sqlite`). The packet in `data/` is read-only and 
 ## How I used AI
 
 I directed the build and made the product and design calls; AI wrote most of the code.
-- Claude Code (Claude Opus 5.5) implemented each phase from my specs: the audit script, server, UI and tests. Every phase ended with a commit, screenshots and a test run I reviewed before approving the next.
-- A second Claude conversation acted as my reviewer:
-  - it checked the audit's claims against the raw packet;
-  - it critiqued screenshots against the design spec, and wrote the design spec with me;
-  - it caught issues I then sent back: crowded screens, transmit overrides that were too quiet, demo numbers that didn't tie to the audit.
-- That last check exposed a real bug: the audit had the wrong sign on three disallowed-expense errors. The fix was to make the audit and the app share one tax-effect function, with scripts/reconcile.ts proving they agree.
+- Claude Code implemented each phase from my specs: the audit script, server, UI and tests. Every phase ended with a commit, screenshots and a test run I reviewed before approving the next.
+- **What I owned:** the product and UI decisions and the errors in the return. I decided what the workpaper should be (one proof thread from any number to its source, findings shown where they break the thread instead of in a separate list), and I shaped the interface through rounds of review: the sign-in flow and role picker, the softer palette, cutting crowded screens down to one question each, and the story-led walkthrough. I defined which checks to run against the printed documents and verified every error against the source pages myself, not against a model's summary.
+- **Where it helped most:** reconciling the demo numbers exposed a sign error in three of the expense checks. I made the audit and the app share one tax-effect function, with `scripts/reconcile.ts` proving every number on screen ties back.
 
-I checked every number in the audit findings against the source documents, not against the model's summary.
