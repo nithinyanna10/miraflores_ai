@@ -26,12 +26,12 @@ The audit's findings are not a separate error list. Each one breaks the thread a
 ## Trust model
 
 - **The packet's printed text is ground truth. Extracted values and engine output are claims to check.**
-  - `scripts/audit.ts` runs independent checks and finds 19 errors, 4 judgment calls and 71 warnings. See ERRORS_FOUND.md.
+  - `scripts/audit.ts` runs independent checks and finds 19 errors, 4 judgment calls and 71 warnings (`findings.json`).
   - The audit seeds the open items; nothing is hand-entered.
 - **Tax effect = change × v3 rate,** as the readme prescribes, computed once on the server (`effectOf`) and shared by the audit and the app.
   - Adjustments are not propagated into dependent totals. The engine cannot be rerun, and a second engine would disagree with the first.
   - Known knock-ons the rate misses (Schedule C moves the SEP and SE health insurance limits; those move QBI) become "needs recompute" judgment items.
-  - `scripts/reconcile.ts` proves every demo number ties to ERRORS.md.
+  - `scripts/reconcile.ts` proves every demo number ties to the audit findings.
 - **Roles are enforced on the server.**
   - Identity comes only from a signed, HttpOnly session cookie; a forged header is ignored, and a test checks it.
   - One policy file (`shared/policy.ts`) holds the firm's rules: no reviewing your own work, adjustments over 1,000 need the partner, judgment calls need an authority, open review notes block filing, staff start dates. Refusals come back in plain words.

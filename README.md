@@ -5,18 +5,17 @@
 | Read | What it is |
 |---|---|
 | [ONE_PAGER.md](ONE_PAGER.md) | The core idea and the data model |
-| [ERRORS_FOUND.md](ERRORS_FOUND.md) | Each error in the packet, how the design surfaced it, where to see it live |
 | [VIDEO_SCRIPT.md](VIDEO_SCRIPT.md) | The walkthrough path through the live app |
 | [NOTES.md](NOTES.md) | Decisions and tradeoffs, phase by phase |
-| [ERRORS.md](ERRORS.md), `findings.json` | Full audit output |
+| `findings.json` | Full audit output: every error, judgment call and warning, with refs and tax effects |
 
 ## Run it
 
 ```sh
 npm install
-npm run audit            # independent checks on the packet: writes findings.json and ERRORS.md
+npm run audit            # independent checks on the packet: writes findings.json (and a readable ERRORS.md)
 npm run dev              # server on :8787 and Vite on :5173; open http://localhost:5173
-node scripts/reconcile.ts                  # every demo number ties to ERRORS.md
+node scripts/reconcile.ts                  # every demo number ties to the audit findings
 node server/mask.ts                        # masking cases
 node scripts/e2e-phase2.ts [url]           # also e2e-phase3, -phase4, -phase5 (Playwright)
 scripts/reset.sh <url> clean|midseason     # reset the demo as the firm administrator
@@ -30,8 +29,8 @@ I directed the build and made the product and design calls; AI wrote most of the
 - Claude Code (Claude Opus 5.5) implemented each phase from my specs: the audit script, server, UI and tests. Every phase ended with a commit, screenshots and a test run I reviewed before approving the next.
 - A second Claude conversation acted as my reviewer:
   - it checked the audit's claims against the raw packet;
-  - it critiqued screenshots against the design spec, and wrote DESIGN.md with me;
+  - it critiqued screenshots against the design spec, and wrote the design spec with me;
   - it caught issues I then sent back: crowded screens, transmit overrides that were too quiet, demo numbers that didn't tie to the audit.
 - That last check exposed a real bug: the audit had the wrong sign on three disallowed-expense errors. The fix was to make the audit and the app share one tax-effect function, with scripts/reconcile.ts proving they agree.
 
-I checked every number in ERRORS_FOUND.md against the source documents, not against the model's summary.
+I checked every number in the audit findings against the source documents, not against the model's summary.

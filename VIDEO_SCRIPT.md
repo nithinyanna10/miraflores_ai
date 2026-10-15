@@ -42,7 +42,7 @@ Sign in as **Daniel Ortiz, reviewer**.
 
 *Decision:* no propagation of adjustments into dependent totals, because the engine cannot be rerun and a second engine would disagree with the first. Known knock-ons, such as the SEP and SE health insurance limits and QBI, become "needs recompute" judgment items. Open **Sch1.16** to show one.
 
-- Mention `scripts/reconcile.ts`. Every demo number ties to ERRORS.md: the approval refund of 15,774 = v3 owed 4,220 minus 19,994 of audit fixes.
+- Mention `scripts/reconcile.ts`. Every demo number ties to the audit findings: the approval refund of 15,774 = v3 owed 4,220 minus 19,994 of audit fixes.
 - Say what it caught: my audit had the wrong sign on three expense-side errors. The audit and the app now share one `effectOf`.
 
 ## 4:00 to 4:50. Review: verify, review notes, sign-offs that reopen
