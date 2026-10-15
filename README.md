@@ -6,8 +6,6 @@
 |---|---|
 | [ONE_PAGER.md](ONE_PAGER.md) | The core idea and the data model |
 | [ERRORS_FOUND.md](ERRORS_FOUND.md) | Each error in the packet, how the design surfaced it, where to see it live |
-| [VIDEO_SCRIPT.md](VIDEO_SCRIPT.md) | The walkthrough path through the live app |
-| [NOTES.md](NOTES.md) | Decisions and tradeoffs, phase by phase |
 | `findings.json` | Full audit output: every error, judgment call and warning, with refs and tax effects |
 
 ## Run it
