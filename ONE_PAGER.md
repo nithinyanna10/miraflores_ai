@@ -26,7 +26,7 @@ The audit's findings are not a separate error list. Each one breaks the thread a
 ## Trust model
 
 - **The packet's printed text is ground truth. Extracted values and engine output are claims to check.**
-  - `scripts/audit.ts` runs independent checks and finds 19 errors, 4 judgment calls and 71 warnings (`findings.json`).
+  - `scripts/audit.ts` runs independent checks and finds 19 errors, 4 judgment calls and 71 warnings. See ERRORS_FOUND.md.
   - The audit seeds the open items; nothing is hand-entered.
 - **Tax effect = change × v3 rate,** as the readme prescribes, computed once on the server (`effectOf`) and shared by the audit and the app.
   - Adjustments are not propagated into dependent totals. The engine cannot be rerun, and a second engine would disagree with the first.
